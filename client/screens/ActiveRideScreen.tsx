@@ -1,20 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, Pressable, Alert, Platform } from "react-native";
+import { StyleSheet, View, Pressable, Alert, Platform, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Location from "expo-location";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { MapViewWrapper, Marker, Polyline } from "@/components/MapViewWrapper";
+import { MapViewWrapper, useMapComponents } from "@/components/MapViewWrapper";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
@@ -29,20 +22,11 @@ export default function ActiveRideScreen() {
   const route = useRoute<ActiveRideRouteProp>();
   const { rides, getRide, updateRide } = useRides();
   const { profile } = useProfile();
+  const { Marker, Polyline } = useMapComponents();
   
   const [ride, setRide] = useState<ReturnType<typeof getRide>>(undefined);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [showRidersList, setShowRidersList] = useState(false);
-  const [isMapReady, setIsMapReady] = useState(false);
-  const pulseScale = useSharedValue(1);
-
-  useEffect(() => {
-    pulseScale.value = withRepeat(
-      withTiming(1.3, { duration: 1000 }),
-      -1,
-      true
-    );
-  }, []);
 
   useEffect(() => {
     let locationSubscription: Location.LocationSubscription | null = null;
@@ -50,7 +34,11 @@ export default function ActiveRideScreen() {
     const startLocationTracking = async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("Permission Denied", "Location permission is required for live tracking.");
+        if (Platform.OS === "web") {
+          window.alert("Location permission is required for live tracking.");
+        } else {
+          Alert.alert("Permission Denied", "Location permission is required for live tracking.");
+        }
         return;
       }
 
@@ -85,16 +73,8 @@ export default function ActiveRideScreen() {
     if (rides.length > 0) {
       const foundRide = getRide(route.params.rideId);
       setRide(foundRide);
-      if (foundRide && !isMapReady) {
-        setIsMapReady(true);
-      }
     }
   }, [route.params.rideId, rides, getRide]);
-
-  const pulseStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulseScale.value }],
-    opacity: 2 - pulseScale.value,
-  }));
 
   const handleEndRide = async () => {
     const doEndRide = async () => {
@@ -179,7 +159,9 @@ export default function ActiveRideScreen() {
     return (
       <ThemedView style={styles.container}>
         <View style={styles.errorContainer}>
-          <Feather name="alert-circle" size={48} color={theme.danger} />
+          <View style={[styles.iconCircle, { backgroundColor: theme.danger }]}>
+            <ThemedText type="h3" style={{ color: "#FFFFFF" }}>!</ThemedText>
+          </View>
           <ThemedText type="h3">Ride not found</ThemedText>
           <Pressable onPress={() => navigation.goBack()}>
             <ThemedText type="link">Go Back</ThemedText>
@@ -196,7 +178,7 @@ export default function ActiveRideScreen() {
     longitudeDelta: 0.0421,
   };
 
-  const mockRiderLocations = ride.riders.map((rider, index) => ({
+  const mockRiderLocations = ride.riders.map((rider) => ({
     ...rider,
     latitude: (userLocation?.latitude || 37.78825) + (Math.random() - 0.5) * 0.01,
     longitude: (userLocation?.longitude || -122.4324) + (Math.random() - 0.5) * 0.01,
@@ -208,22 +190,15 @@ export default function ActiveRideScreen() {
         initialRegion={defaultRegion}
         userInterfaceStyle={isDark ? "dark" : "light"}
       >
-        {Platform.OS !== "web" && userLocation ? (
+        {Platform.OS !== "web" && userLocation && Marker !== View ? (
           <Marker coordinate={userLocation} anchor={{ x: 0.5, y: 0.5 }}>
             <View style={styles.userMarker}>
-              <Animated.View
-                style={[
-                  styles.userMarkerPulse,
-                  { backgroundColor: theme.primary },
-                  pulseStyle,
-                ]}
-              />
               <View style={[styles.userMarkerDot, { backgroundColor: theme.primary }]} />
             </View>
           </Marker>
         ) : null}
 
-        {Platform.OS !== "web" ? mockRiderLocations
+        {Platform.OS !== "web" && Marker !== View ? mockRiderLocations
           .filter((r) => r.id !== profile?.id)
           .map((rider) => (
             <Marker
@@ -232,12 +207,14 @@ export default function ActiveRideScreen() {
               onPress={() => handleRiderPress(rider)}
             >
               <View style={[styles.riderMarker, { backgroundColor: theme.riderMarker }]}>
-                <Feather name="navigation" size={16} color="#FFFFFF" />
+                <ThemedText type="small" style={{ color: "#FFFFFF", fontWeight: "700" }}>
+                  {rider.name.charAt(0)}
+                </ThemedText>
               </View>
             </Marker>
           )) : null}
 
-        {Platform.OS !== "web" && userLocation ? (
+        {Platform.OS !== "web" && userLocation && Polyline !== View ? (
           <Polyline
             coordinates={[
               userLocation,
@@ -250,101 +227,93 @@ export default function ActiveRideScreen() {
         ) : null}
       </MapViewWrapper>
 
-      <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
-        <View style={[styles.headerCard, { backgroundColor: theme.backgroundRoot + "E6" }]}>
-          <View style={styles.headerContent}>
+      <View style={[styles.topControls, { paddingTop: insets.top + Spacing.sm }]}>
+        <View style={[styles.headerCard, { backgroundColor: theme.backgroundRoot + "F0" }]}>
+          <View style={styles.headerRow}>
             <View style={[styles.statusDot, { backgroundColor: theme.accent }]} />
-            <ThemedText type="h4">Ride in Progress</ThemedText>
+            <ThemedText type="h4" style={{ flex: 1 }}>Ride Active</ThemedText>
+            <Pressable
+              style={({ pressed }) => [
+                styles.endButton,
+                { backgroundColor: theme.danger, opacity: pressed ? 0.7 : 1 },
+              ]}
+              onPress={handleEndRide}
+            >
+              <ThemedText type="small" style={{ color: "#FFFFFF", fontWeight: "700" }}>
+                END
+              </ThemedText>
+            </Pressable>
           </View>
-          <Pressable
-            style={({ pressed }) => [styles.endButton, { opacity: pressed ? 0.7 : 1 }]}
-            onPress={handleEndRide}
-          >
-            <ThemedText type="small" style={{ color: theme.danger, fontWeight: "600" }}>
-              End Ride
-            </ThemedText>
-          </Pressable>
+
+          <View style={styles.actionButtons}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionButton,
+                { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
+              ]}
+              onPress={handleOpenChat}
+            >
+              <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "600" }}>
+                Chat
+              </ThemedText>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionButton,
+                { backgroundColor: theme.danger, opacity: pressed ? 0.8 : 1 },
+              ]}
+              onPress={handleSOS}
+            >
+              <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "700" }}>
+                SOS
+              </ThemedText>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionButton,
+                { backgroundColor: theme.backgroundSecondary, opacity: pressed ? 0.8 : 1 },
+              ]}
+              onPress={() => setShowRidersList(!showRidersList)}
+            >
+              <ThemedText type="body" style={{ fontWeight: "600" }}>
+                {ride.riders.length} Riders
+              </ThemedText>
+            </Pressable>
+          </View>
+
+          {showRidersList && (
+            <View style={styles.ridersList}>
+              {ride.riders.map((rider) => (
+                <Pressable
+                  key={rider.id}
+                  style={({ pressed }) => [
+                    styles.riderItem,
+                    { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.7 : 1 },
+                  ]}
+                  onPress={() => handleRiderPress(rider)}
+                >
+                  <View style={[styles.riderAvatar, { backgroundColor: theme.primary }]}>
+                    <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "600" }}>
+                      {rider.name.charAt(0)}
+                    </ThemedText>
+                  </View>
+                  <View style={styles.riderDetails}>
+                    <ThemedText type="body" style={{ fontWeight: "500" }}>
+                      {rider.name}
+                      {rider.id === profile?.id ? " (You)" : ""}
+                    </ThemedText>
+                    <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                      {rider.vehicleName} - {rider.vehicleNumber}
+                    </ThemedText>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+          )}
         </View>
       </View>
-
-      <View style={[styles.floatingButtons, { bottom: Math.max(insets.bottom, Spacing["3xl"]) + Spacing["2xl"] }]}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.chatButton,
-            { backgroundColor: theme.backgroundRoot, opacity: pressed ? 0.8 : 1 },
-            Shadows.fab,
-          ]}
-          onPress={handleOpenChat}
-        >
-          <Feather name="message-circle" size={24} color={theme.primary} />
-        </Pressable>
-
-        <Pressable
-          style={({ pressed }) => [
-            styles.sosButton,
-            { backgroundColor: theme.danger, opacity: pressed ? 0.8 : 1 },
-            Shadows.fab,
-          ]}
-          onPress={handleSOS}
-        >
-          <Feather name="alert-triangle" size={28} color="#FFFFFF" />
-        </Pressable>
-      </View>
-
-      <Pressable
-        style={[
-          styles.ridersCard,
-          {
-            backgroundColor: theme.backgroundRoot,
-            bottom: Math.max(insets.bottom, Spacing["3xl"]) + Spacing["2xl"] + 90,
-          },
-        ]}
-        onPress={() => setShowRidersList(!showRidersList)}
-      >
-        <View style={styles.ridersHeader}>
-          <View style={styles.ridersInfo}>
-            <Feather name="users" size={18} color={theme.primary} />
-            <ThemedText type="body" style={{ fontWeight: "600" }}>
-              {ride.riders.length} Riders
-            </ThemedText>
-          </View>
-          <Feather
-            name={showRidersList ? "chevron-down" : "chevron-up"}
-            size={20}
-            color={theme.textSecondary}
-          />
-        </View>
-
-        {showRidersList && (
-          <View style={styles.ridersList}>
-            {ride.riders.map((rider) => (
-              <Pressable
-                key={rider.id}
-                style={({ pressed }) => [
-                  styles.riderItem,
-                  { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.7 : 1 },
-                ]}
-                onPress={() => handleRiderPress(rider)}
-              >
-                <View style={[styles.riderAvatar, { backgroundColor: theme.primary }]}>
-                  <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "600" }}>
-                    {rider.name.charAt(0)}
-                  </ThemedText>
-                </View>
-                <View style={styles.riderDetails}>
-                  <ThemedText type="body" style={{ fontWeight: "500" }}>
-                    {rider.name}
-                    {rider.id === profile?.id && " (You)"}
-                  </ThemedText>
-                  <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                    {rider.vehicleName} - {rider.vehicleNumber}
-                  </ThemedText>
-                </View>
-              </Pressable>
-            ))}
-          </View>
-        )}
-      </Pressable>
     </View>
   );
 }
@@ -359,71 +328,51 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: Spacing.lg,
   },
-  header: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: Spacing.xl,
-  },
-  headerCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-  },
-  headerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: Spacing.sm,
-  },
-  statusDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  endButton: {
-    paddingVertical: Spacing.xs,
-    paddingHorizontal: Spacing.md,
-  },
-  floatingButtons: {
-    position: "absolute",
-    right: Spacing.xl,
-    gap: Spacing.md,
-    alignItems: "center",
-  },
-  chatButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sosButton: {
+  iconCircle: {
     width: 64,
     height: 64,
     borderRadius: 32,
     alignItems: "center",
     justifyContent: "center",
   },
-  ridersCard: {
+  topControls: {
     position: "absolute",
-    left: Spacing.xl,
-    right: Spacing.xl + 80,
-    borderRadius: BorderRadius.md,
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: Spacing.lg,
+  },
+  headerCard: {
     padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
     ...Shadows.card,
   },
-  ridersHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  ridersInfo: {
+  headerRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
+  },
+  statusDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  endButton: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.sm,
+  },
+  actionButtons: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  actionButton: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    alignItems: "center",
+    justifyContent: "center",
   },
   ridersList: {
     marginTop: Spacing.md,
@@ -448,21 +397,15 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   userMarker: {
-    width: 30,
-    height: 30,
+    width: 20,
+    height: 20,
     alignItems: "center",
     justifyContent: "center",
   },
-  userMarkerPulse: {
-    position: "absolute",
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-  },
   userMarkerDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     borderWidth: 3,
     borderColor: "#FFFFFF",
   },
@@ -474,15 +417,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 2,
     borderColor: "#FFFFFF",
-  },
-  webMapPlaceholder: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: Spacing.lg,
-    padding: Spacing["2xl"],
-  },
-  webMapText: {
-    marginTop: Spacing.md,
   },
 });

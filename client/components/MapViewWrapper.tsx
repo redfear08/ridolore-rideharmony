@@ -1,6 +1,5 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { View, StyleSheet, Platform } from "react-native";
-import { Feather } from "@expo/vector-icons";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing } from "@/constants/theme";
@@ -22,7 +21,9 @@ function WebFallback() {
   
   return (
     <View style={[styles.webMapPlaceholder, { backgroundColor: theme.backgroundDefault }]}>
-      <Feather name="map" size={64} color={theme.textSecondary} />
+      <View style={[styles.mapIcon, { backgroundColor: theme.primary }]}>
+        <ThemedText type="h2" style={{ color: "#FFFFFF" }}>M</ThemedText>
+      </View>
       <ThemedText type="h3" style={styles.webMapText}>
         Map View
       </ThemedText>
@@ -33,40 +34,61 @@ function WebFallback() {
   );
 }
 
-let MapViewComponent: any = null;
-let MarkerComponent: any = null;
-let PolylineComponent: any = null;
-
-if (Platform.OS !== "web") {
-  const Maps = require("react-native-maps");
-  MapViewComponent = Maps.default;
-  MarkerComponent = Maps.Marker;
-  PolylineComponent = Maps.Polyline;
-}
-
 export function MapViewWrapper({ children, style, ...props }: MapViewWrapperProps) {
-  if (Platform.OS === "web") {
-    return <WebFallback />;
-  }
+  const [MapComponent, setMapComponent] = useState<any>(null);
+  
+  useEffect(() => {
+    if (Platform.OS !== "web") {
+      try {
+        const Maps = require("react-native-maps");
+        setMapComponent(() => Maps.default);
+      } catch (error) {
+        console.log("Maps not available:", error);
+      }
+    }
+  }, []);
 
-  if (!MapViewComponent) {
+  if (Platform.OS === "web" || !MapComponent) {
     return <WebFallback />;
   }
 
   return (
-    <MapViewComponent
+    <MapComponent
       style={[StyleSheet.absoluteFill, style]}
       showsUserLocation={false}
       showsMyLocationButton={false}
       {...props}
     >
       {children}
-    </MapViewComponent>
+    </MapComponent>
   );
 }
 
-export const Marker = Platform.OS !== "web" && MarkerComponent ? MarkerComponent : View;
-export const Polyline = Platform.OS !== "web" && PolylineComponent ? PolylineComponent : View;
+export function useMapComponents() {
+  const [components, setComponents] = useState<{
+    Marker: any;
+    Polyline: any;
+  }>({ Marker: View, Polyline: View });
+
+  useEffect(() => {
+    if (Platform.OS !== "web") {
+      try {
+        const Maps = require("react-native-maps");
+        setComponents({
+          Marker: Maps.Marker,
+          Polyline: Maps.Polyline,
+        });
+      } catch (error) {
+        console.log("Maps components not available:", error);
+      }
+    }
+  }, []);
+
+  return components;
+}
+
+export const Marker = View;
+export const Polyline = View;
 
 const styles = StyleSheet.create({
   webMapPlaceholder: {
@@ -78,5 +100,12 @@ const styles = StyleSheet.create({
   },
   webMapText: {
     marginTop: Spacing.md,
+  },
+  mapIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
