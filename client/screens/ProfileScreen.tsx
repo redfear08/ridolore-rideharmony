@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { StyleSheet, View, Pressable, Alert, Image } from "react-native";
+import { StyleSheet, View, Pressable, Alert, Image, Platform } from "react-native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -46,22 +46,34 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      "Log Out",
-      "Are you sure you want to log out?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Log Out",
-          style: "destructive",
-          onPress: async () => {
-            clearProfile();
-            await signOut();
+  const handleLogout = async () => {
+    const doLogout = async () => {
+      try {
+        clearProfile();
+        await signOut();
+      } catch (error) {
+        console.error("Logout error:", error);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm("Are you sure you want to log out?")) {
+        await doLogout();
+      }
+    } else {
+      Alert.alert(
+        "Log Out",
+        "Are you sure you want to log out?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Log Out",
+            style: "destructive",
+            onPress: doLogout,
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   if (!profile) {
