@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface UserProfile {
   id: string;
@@ -43,33 +44,52 @@ export interface Ride {
   messages: Message[];
 }
 
-const PROFILE_KEY = "@ridesync_profile";
-const RIDES_KEY = "@ridesync_rides";
+const PROFILE_KEY_PREFIX = "@ridesync_profile_";
+const RIDES_KEY_PREFIX = "@ridesync_rides_";
+
+function getProfileKey(userId: string): string {
+  return `${PROFILE_KEY_PREFIX}${userId}`;
+}
+
+function getRidesKey(userId: string): string {
+  return `${RIDES_KEY_PREFIX}${userId}`;
+}
 
 export function useProfile() {
+  const { user } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    loadProfile();
-  }, []);
+    if (user?.id) {
+      loadProfile(user.id);
+    } else {
+      setProfile(null);
+      setIsLoading(false);
+    }
+  }, [user?.id]);
 
-  const loadProfile = async () => {
+  const loadProfile = async (userId: string) => {
+    setIsLoading(true);
     try {
-      const stored = await AsyncStorage.getItem(PROFILE_KEY);
+      const stored = await AsyncStorage.getItem(getProfileKey(userId));
       if (stored) {
         setProfile(JSON.parse(stored));
+      } else {
+        setProfile(null);
       }
     } catch (error) {
       console.error("Error loading profile:", error);
+      setProfile(null);
     } finally {
       setIsLoading(false);
     }
   };
 
   const saveProfile = async (newProfile: UserProfile) => {
+    if (!user?.id) return;
     try {
-      await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(newProfile));
+      await AsyncStorage.setItem(getProfileKey(user.id), JSON.stringify(newProfile));
       setProfile(newProfile);
     } catch (error) {
       console.error("Error saving profile:", error);
@@ -77,15 +97,16 @@ export function useProfile() {
   };
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
-    if (profile) {
+    if (profile && user?.id) {
       const updated = { ...profile, ...updates };
       await saveProfile(updated);
     }
   };
 
   const clearProfile = async () => {
+    if (!user?.id) return;
     try {
-      await AsyncStorage.removeItem(PROFILE_KEY);
+      await AsyncStorage.removeItem(getProfileKey(user.id));
       setProfile(null);
     } catch (error) {
       console.error("Error clearing profile:", error);
@@ -96,29 +117,40 @@ export function useProfile() {
 }
 
 export function useRides() {
+  const { user } = useAuth();
   const [rides, setRides] = useState<Ride[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    loadRides();
-  }, []);
+    if (user?.id) {
+      loadRides(user.id);
+    } else {
+      setRides([]);
+      setIsLoading(false);
+    }
+  }, [user?.id]);
 
-  const loadRides = async () => {
+  const loadRides = async (userId: string) => {
+    setIsLoading(true);
     try {
-      const stored = await AsyncStorage.getItem(RIDES_KEY);
+      const stored = await AsyncStorage.getItem(getRidesKey(userId));
       if (stored) {
         setRides(JSON.parse(stored));
+      } else {
+        setRides([]);
       }
     } catch (error) {
       console.error("Error loading rides:", error);
+      setRides([]);
     } finally {
       setIsLoading(false);
     }
   };
 
   const saveRides = async (newRides: Ride[]) => {
+    if (!user?.id) return;
     try {
-      await AsyncStorage.setItem(RIDES_KEY, JSON.stringify(newRides));
+      await AsyncStorage.setItem(getRidesKey(user.id), JSON.stringify(newRides));
       setRides(newRides);
     } catch (error) {
       console.error("Error saving rides:", error);
@@ -143,14 +175,14 @@ export function useRides() {
     const updatedRides = [newRide, ...rides];
     await saveRides(updatedRides);
     return newRide;
-  }, [rides]);
+  }, [rides, user?.id]);
 
   const updateRide = useCallback(async (rideId: string, updates: Partial<Ride>) => {
     const updatedRides = rides.map((ride) =>
       ride.id === rideId ? { ...ride, ...updates } : ride
     );
     await saveRides(updatedRides);
-  }, [rides]);
+  }, [rides, user?.id]);
 
   const joinRide = useCallback(async (rideId: string, rider: Rider) => {
     const updatedRides = rides.map((ride) => {
@@ -163,7 +195,7 @@ export function useRides() {
       return ride;
     });
     await saveRides(updatedRides);
-  }, [rides]);
+  }, [rides, user?.id]);
 
   const addMessage = useCallback(async (rideId: string, message: Omit<Message, "id" | "timestamp">) => {
     const newMessage: Message = {
@@ -178,15 +210,16 @@ export function useRides() {
     );
     await saveRides(updatedRides);
     return newMessage;
-  }, [rides]);
+  }, [rides, user?.id]);
 
   const getRide = useCallback((rideId: string) => {
     return rides.find((ride) => ride.id === rideId);
   }, [rides]);
 
   const clearRides = async () => {
+    if (!user?.id) return;
     try {
-      await AsyncStorage.removeItem(RIDES_KEY);
+      await AsyncStorage.removeItem(getRidesKey(user.id));
       setRides([]);
     } catch (error) {
       console.error("Error clearing rides:", error);
@@ -202,7 +235,7 @@ export function useRides() {
     addMessage,
     getRide,
     clearRides,
-    refreshRides: loadRides,
+    refreshRides: () => user?.id && loadRides(user.id),
   };
 }
 

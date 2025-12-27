@@ -49,7 +49,6 @@ export default function ProfileScreen() {
   const handleLogout = async () => {
     const doLogout = async () => {
       try {
-        clearProfile();
         await signOut();
       } catch (error) {
         console.error("Logout error:", error);
