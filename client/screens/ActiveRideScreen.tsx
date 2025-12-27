@@ -267,7 +267,7 @@ export default function ActiveRideScreen() {
         </View>
       </View>
 
-      <View style={[styles.floatingButtons, { bottom: insets.bottom + Spacing.xl }]}>
+      <View style={[styles.floatingButtons, { bottom: Math.max(insets.bottom, Spacing["3xl"]) + Spacing["2xl"] }]}>
         <Pressable
           style={({ pressed }) => [
             styles.chatButton,
@@ -296,7 +296,7 @@ export default function ActiveRideScreen() {
           styles.ridersCard,
           {
             backgroundColor: theme.backgroundRoot,
-            bottom: insets.bottom + Spacing.xl + 80,
+            bottom: Math.max(insets.bottom, Spacing["3xl"]) + Spacing["2xl"] + 90,
           },
         ]}
         onPress={() => setShowRidersList(!showRidersList)}
