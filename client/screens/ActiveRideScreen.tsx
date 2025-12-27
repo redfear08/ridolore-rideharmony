@@ -30,9 +30,10 @@ export default function ActiveRideScreen() {
   const { rides, getRide, updateRide } = useRides();
   const { profile } = useProfile();
   
-  const [ride, setRide] = useState(() => getRide(route.params.rideId));
+  const [ride, setRide] = useState<ReturnType<typeof getRide>>(undefined);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [showRidersList, setShowRidersList] = useState(false);
+  const [isMapReady, setIsMapReady] = useState(false);
   const pulseScale = useSharedValue(1);
 
   useEffect(() => {
@@ -81,11 +82,14 @@ export default function ActiveRideScreen() {
   }, []);
 
   useEffect(() => {
-    const updatedRide = getRide(route.params.rideId);
-    if (updatedRide) {
-      setRide(updatedRide);
+    if (rides.length > 0) {
+      const foundRide = getRide(route.params.rideId);
+      setRide(foundRide);
+      if (foundRide && !isMapReady) {
+        setIsMapReady(true);
+      }
     }
-  }, [route.params.rideId, rides]);
+  }, [route.params.rideId, rides, getRide]);
 
   const pulseStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
@@ -161,7 +165,17 @@ export default function ActiveRideScreen() {
     navigation.navigate("RiderProfile", { riderId: rider.id });
   };
 
-  if (!ride) {
+  if (ride === undefined) {
+    return (
+      <ThemedView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <ThemedText type="h3">Loading ride...</ThemedText>
+        </View>
+      </ThemedView>
+    );
+  }
+
+  if (ride === null || !ride) {
     return (
       <ThemedView style={styles.container}>
         <View style={styles.errorContainer}>

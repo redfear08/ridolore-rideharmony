@@ -45,7 +45,11 @@ if (Platform.OS !== "web") {
 }
 
 export function MapViewWrapper({ children, style, ...props }: MapViewWrapperProps) {
-  if (Platform.OS === "web" || !MapViewComponent) {
+  if (Platform.OS === "web") {
+    return <WebFallback />;
+  }
+
+  if (!MapViewComponent) {
     return <WebFallback />;
   }
 
