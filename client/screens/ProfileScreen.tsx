@@ -17,6 +17,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useProfile, useRides } from "@/hooks/useStorage";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function ProfileScreen() {
   const headerHeight = useHeaderHeight();
@@ -26,6 +27,7 @@ export default function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { profile, updateProfile, clearProfile } = useProfile();
   const { rides } = useRides();
+  const { signOut } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
 
   const completedRides = rides.filter((r) => r.status === "completed").length;
@@ -47,18 +49,15 @@ export default function ProfileScreen() {
   const handleLogout = () => {
     Alert.alert(
       "Log Out",
-      "Are you sure you want to log out? Your profile data will be cleared.",
+      "Are you sure you want to log out?",
       [
         { text: "Cancel", style: "cancel" },
         {
           text: "Log Out",
           style: "destructive",
-          onPress: () => {
+          onPress: async () => {
             clearProfile();
-            navigation.reset({
-              index: 0,
-              routes: [{ name: "Main" }],
-            });
+            await signOut();
           },
         },
       ]
