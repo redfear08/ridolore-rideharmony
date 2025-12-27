@@ -27,10 +27,10 @@ export default function ActiveRideScreen() {
   const { theme, isDark } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<ActiveRideRouteProp>();
-  const { getRide, updateRide } = useRides();
+  const { rides, getRide, updateRide } = useRides();
   const { profile } = useProfile();
   
-  const [ride, setRide] = useState(getRide(route.params.rideId));
+  const [ride, setRide] = useState(() => getRide(route.params.rideId));
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [showRidersList, setShowRidersList] = useState(false);
   const pulseScale = useSharedValue(1);
@@ -82,49 +82,75 @@ export default function ActiveRideScreen() {
 
   useEffect(() => {
     const updatedRide = getRide(route.params.rideId);
-    setRide(updatedRide);
-  }, [route.params.rideId, getRide]);
+    if (updatedRide) {
+      setRide(updatedRide);
+    }
+  }, [route.params.rideId, rides]);
 
   const pulseStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulseScale.value }],
     opacity: 2 - pulseScale.value,
   }));
 
-  const handleEndRide = () => {
-    Alert.alert(
-      "End Ride",
-      "Are you sure you want to end this ride? All riders will be notified.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "End Ride",
-          style: "destructive",
-          onPress: async () => {
-            if (ride) {
-              await updateRide(ride.id, { status: "completed" });
-            }
-            navigation.popToTop();
+  const handleEndRide = async () => {
+    const doEndRide = async () => {
+      try {
+        if (ride) {
+          await updateRide(ride.id, { status: "completed" });
+        }
+        navigation.popToTop();
+      } catch (error) {
+        console.error("Error ending ride:", error);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm("Are you sure you want to end this ride? All riders will be notified.")) {
+        await doEndRide();
+      }
+    } else {
+      Alert.alert(
+        "End Ride",
+        "Are you sure you want to end this ride? All riders will be notified.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "End Ride",
+            style: "destructive",
+            onPress: doEndRide,
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const handleSOS = () => {
-    Alert.alert(
-      "Send SOS Alert?",
-      "Your location will be shared with all riders and emergency contacts.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Send SOS",
-          style: "destructive",
-          onPress: () => {
-            Alert.alert("SOS Sent", "All riders have been notified of your emergency.");
+    const doSOS = () => {
+      if (Platform.OS === "web") {
+        window.alert("SOS Sent! All riders have been notified of your emergency.");
+      } else {
+        Alert.alert("SOS Sent", "All riders have been notified of your emergency.");
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm("Send SOS Alert? Your location will be shared with all riders and emergency contacts.")) {
+        doSOS();
+      }
+    } else {
+      Alert.alert(
+        "Send SOS Alert?",
+        "Your location will be shared with all riders and emergency contacts.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Send SOS",
+            style: "destructive",
+            onPress: doSOS,
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const handleOpenChat = () => {
