@@ -1,18 +1,31 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
-import ModalScreen from "@/screens/ModalScreen";
+import CreateRideScreen from "@/screens/CreateRideScreen";
+import QRCodeShareScreen from "@/screens/QRCodeShareScreen";
+import JoinRideScreen from "@/screens/JoinRideScreen";
+import ActiveRideScreen from "@/screens/ActiveRideScreen";
+import GroupChatScreen from "@/screens/GroupChatScreen";
+import RiderProfileScreen from "@/screens/RiderProfileScreen";
+import ProfileSetupScreen from "@/screens/ProfileSetupScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
 export type RootStackParamList = {
   Main: undefined;
-  Modal: undefined;
+  ProfileSetup: undefined;
+  CreateRide: undefined;
+  QRCodeShare: { rideId: string };
+  JoinRide: undefined;
+  ActiveRide: { rideId: string };
+  GroupChat: { rideId: string };
+  RiderProfile: { riderId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function RootStackNavigator() {
   const screenOptions = useScreenOptions();
+  const opaqueScreenOptions = useScreenOptions({ transparent: false });
 
   return (
     <Stack.Navigator screenOptions={screenOptions}>
@@ -22,11 +35,65 @@ export default function RootStackNavigator() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
-        name="Modal"
-        component={ModalScreen}
+        name="ProfileSetup"
+        component={ProfileSetupScreen}
+        options={{
+          ...opaqueScreenOptions,
+          presentation: "modal",
+          headerTitle: "Complete Profile",
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="CreateRide"
+        component={CreateRideScreen}
+        options={{
+          ...opaqueScreenOptions,
+          presentation: "modal",
+          headerTitle: "Create Ride",
+        }}
+      />
+      <Stack.Screen
+        name="QRCodeShare"
+        component={QRCodeShareScreen}
+        options={{
+          ...opaqueScreenOptions,
+          headerTitle: "Invite Riders",
+        }}
+      />
+      <Stack.Screen
+        name="JoinRide"
+        component={JoinRideScreen}
         options={{
           presentation: "modal",
-          headerTitle: "Modal",
+          headerTitle: "Join Ride",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="ActiveRide"
+        component={ActiveRideScreen}
+        options={{
+          presentation: "fullScreenModal",
+          headerShown: false,
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="GroupChat"
+        component={GroupChatScreen}
+        options={{
+          ...opaqueScreenOptions,
+          presentation: "modal",
+          headerTitle: "Group Chat",
+        }}
+      />
+      <Stack.Screen
+        name="RiderProfile"
+        component={RiderProfileScreen}
+        options={{
+          presentation: "modal",
+          headerTitle: "Rider Profile",
         }}
       />
     </Stack.Navigator>
