@@ -291,17 +291,17 @@ export function useRides() {
     
     await firebaseJoinRide(rideId, fbRider);
     
-    setRides((prev) =>
-      prev.map((ride) => {
-        if (ride.id === rideId) {
-          const existingRider = ride.riders.find((r) => r.id === rider.id);
-          if (!existingRider) {
-            return { ...ride, riders: [...ride.riders, rider] };
-          }
+    const freshRide = await firebaseGetRide(rideId);
+    if (freshRide) {
+      const localRide = mapFirebaseRideToLocal(freshRide);
+      setRides((prev) => {
+        const exists = prev.some((r) => r.id === rideId);
+        if (!exists) {
+          return [...prev, localRide];
         }
-        return ride;
-      })
-    );
+        return prev.map((r) => (r.id === rideId ? localRide : r));
+      });
+    }
   }, []);
 
   const addMessage = useCallback(async (rideId: string, message: Omit<Message, "id" | "timestamp">) => {
