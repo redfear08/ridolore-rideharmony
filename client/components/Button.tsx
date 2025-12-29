@@ -9,13 +9,15 @@ import Animated, {
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { BorderRadius, Spacing } from "@/constants/theme";
+import { useResponsive } from "@/hooks/useResponsive";
+import { BorderRadius } from "@/constants/theme";
 
 interface ButtonProps {
   onPress?: () => void;
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
   disabled?: boolean;
+  size?: "small" | "medium" | "large";
 }
 
 const springConfig: WithSpringConfig = {
@@ -33,9 +35,15 @@ export function Button({
   children,
   style,
   disabled = false,
+  size = "medium",
 }: ButtonProps) {
   const { theme } = useTheme();
+  const { isSmallScreen, moderateScale } = useResponsive();
   const scale = useSharedValue(1);
+
+  const buttonHeight = size === "small" ? moderateScale(40) : 
+                       size === "large" ? moderateScale(56) : 
+                       isSmallScreen ? moderateScale(48) : moderateScale(52);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -64,6 +72,8 @@ export function Button({
         {
           backgroundColor: theme.link,
           opacity: disabled ? 0.5 : 1,
+          height: buttonHeight,
+          paddingHorizontal: moderateScale(24),
         },
         style,
         animatedStyle,
@@ -81,7 +91,6 @@ export function Button({
 
 const styles = StyleSheet.create({
   button: {
-    height: Spacing.buttonHeight,
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",

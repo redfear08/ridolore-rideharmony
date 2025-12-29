@@ -9,7 +9,8 @@ import Animated, {
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { useResponsive } from "@/hooks/useResponsive";
+import { BorderRadius } from "@/constants/theme";
 
 interface CardProps {
   elevation?: number;
@@ -55,9 +56,11 @@ export function Card({
   style,
 }: CardProps) {
   const { theme } = useTheme();
+  const { moderateScale, isSmallScreen } = useResponsive();
   const scale = useSharedValue(1);
 
   const cardBackgroundColor = getBackgroundColorForElevation(elevation, theme);
+  const cardPadding = isSmallScreen ? moderateScale(16) : moderateScale(20);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -80,13 +83,14 @@ export function Card({
         styles.card,
         {
           backgroundColor: cardBackgroundColor,
+          padding: cardPadding,
         },
         animatedStyle,
         style,
       ]}
     >
       {title ? (
-        <ThemedText type="h4" style={styles.cardTitle}>
+        <ThemedText type="h4" style={[styles.cardTitle, { marginBottom: moderateScale(8) }]}>
           {title}
         </ThemedText>
       ) : null}
@@ -102,12 +106,9 @@ export function Card({
 
 const styles = StyleSheet.create({
   card: {
-    padding: Spacing.xl,
     borderRadius: BorderRadius["2xl"],
   },
-  cardTitle: {
-    marginBottom: Spacing.sm,
-  },
+  cardTitle: {},
   cardDescription: {
     opacity: 0.7,
   },
