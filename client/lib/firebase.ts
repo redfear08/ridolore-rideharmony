@@ -235,6 +235,16 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
   await setDoc(docRef, cleanUpdates, { merge: true });
 }
 
+function cleanObject(obj: Record<string, any>): Record<string, any> {
+  const cleaned: Record<string, any> = {};
+  Object.entries(obj).forEach(([key, value]) => {
+    if (value !== undefined) {
+      cleaned[key] = value;
+    }
+  });
+  return cleaned;
+}
+
 export async function createRide(userId: string, rideData: Omit<Ride, "id" | "creatorId" | "createdAt" | "updatedAt" | "joinCode" | "riderIds">): Promise<string> {
   if (!isFirebaseConfigured) {
     throw new Error("Firebase is not configured. Please add Firebase credentials.");
@@ -242,12 +252,19 @@ export async function createRide(userId: string, rideData: Omit<Ride, "id" | "cr
   
   const joinCode = Math.random().toString(36).substring(2, 8).toUpperCase();
   const riderIds = rideData.riders.map(r => r.id);
+  const cleanedRiders = rideData.riders.map(r => cleanObject(r));
   
   const ride = {
-    ...rideData,
+    title: rideData.title,
+    source: rideData.source,
+    destination: rideData.destination,
+    waypoints: rideData.waypoints,
+    time: rideData.time,
+    status: rideData.status,
     creatorId: userId,
     joinCode,
     riderIds,
+    riders: cleanedRiders,
     date: Timestamp.fromDate(rideData.date),
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
