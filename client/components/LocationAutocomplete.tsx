@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { StyleSheet, View, TextInput, Pressable, ScrollView, Platform, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import * as Location from "expo-location";
+import Constants from "expo-constants";
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
@@ -13,6 +13,7 @@ interface LocationSuggestion {
   address: string;
   latitude: number;
   longitude: number;
+  placeId?: string;
 }
 
 interface LocationAutocompleteProps {
@@ -25,28 +26,7 @@ interface LocationAutocompleteProps {
   isLocating?: boolean;
 }
 
-const COMMON_LOCATIONS = [
-  { name: "Mumbai Central", region: "Mumbai, Maharashtra" },
-  { name: "Delhi NCR", region: "New Delhi" },
-  { name: "Bangalore Tech Park", region: "Bangalore, Karnataka" },
-  { name: "Chennai Central", region: "Chennai, Tamil Nadu" },
-  { name: "Hyderabad", region: "Hyderabad, Telangana" },
-  { name: "Pune", region: "Pune, Maharashtra" },
-  { name: "Kolkata", region: "Kolkata, West Bengal" },
-  { name: "Ahmedabad", region: "Ahmedabad, Gujarat" },
-  { name: "Jaipur", region: "Jaipur, Rajasthan" },
-  { name: "Lucknow", region: "Lucknow, Uttar Pradesh" },
-  { name: "San Francisco", region: "California, USA" },
-  { name: "New York", region: "New York, USA" },
-  { name: "Los Angeles", region: "California, USA" },
-  { name: "Chicago", region: "Illinois, USA" },
-  { name: "Houston", region: "Texas, USA" },
-  { name: "London", region: "England, UK" },
-  { name: "Sydney", region: "NSW, Australia" },
-  { name: "Singapore", region: "Singapore" },
-  { name: "Dubai", region: "UAE" },
-  { name: "Tokyo", region: "Japan" },
-];
+const GOOGLE_MAPS_API_KEY = Constants.expoConfig?.extra?.googleMapsApiKey || process.env.GOOGLE_MAPS_API_KEY || "";
 
 export function LocationAutocomplete({
   value,
@@ -72,6 +52,67 @@ export function LocationAutocomplete({
     };
   }, []);
 
+  const searchWithGooglePlaces = useCallback(async (query: string): Promise<LocationSuggestion[]> => {
+    if (!GOOGLE_MAPS_API_KEY) {
+      console.log("Google Maps API key not available");
+      return [];
+    }
+
+    try {
+      const autocompleteUrl = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&key=${GOOGLE_MAPS_API_KEY}&types=geocode|establishment`;
+      
+      const response = await fetch(autocompleteUrl);
+      const data = await response.json();
+
+      if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+        console.log("Places API error:", data.status, data.error_message);
+        return [];
+      }
+
+      if (!data.predictions || data.predictions.length === 0) {
+        return [];
+      }
+
+      const suggestionsWithDetails: LocationSuggestion[] = await Promise.all(
+        data.predictions.slice(0, 5).map(async (prediction: any, index: number) => {
+          try {
+            const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${prediction.place_id}&fields=geometry,formatted_address,name&key=${GOOGLE_MAPS_API_KEY}`;
+            const detailsResponse = await fetch(detailsUrl);
+            const detailsData = await detailsResponse.json();
+
+            if (detailsData.status === "OK" && detailsData.result) {
+              const location = detailsData.result.geometry?.location;
+              return {
+                id: `google-${index}-${prediction.place_id}`,
+                name: prediction.structured_formatting?.main_text || prediction.description.split(",")[0],
+                address: prediction.structured_formatting?.secondary_text || prediction.description,
+                latitude: location?.lat || 0,
+                longitude: location?.lng || 0,
+                placeId: prediction.place_id,
+              };
+            }
+          } catch (error) {
+            console.log("Error fetching place details:", error);
+          }
+
+          return {
+            id: `google-${index}-${prediction.place_id}`,
+            name: prediction.structured_formatting?.main_text || prediction.description.split(",")[0],
+            address: prediction.structured_formatting?.secondary_text || prediction.description,
+            latitude: 0,
+            longitude: 0,
+            placeId: prediction.place_id,
+          };
+        })
+      );
+
+      return suggestionsWithDetails;
+    } catch (error) {
+      console.log("Google Places search error:", error);
+      return [];
+    }
+  }, []);
+
   const searchLocations = useCallback(async (query: string) => {
     if (query.length < 2) {
       setSuggestions([]);
@@ -81,70 +122,22 @@ export function LocationAutocomplete({
     setIsSearching(true);
 
     try {
-      const filteredCommon = COMMON_LOCATIONS
-        .filter(loc => 
-          loc.name.toLowerCase().includes(query.toLowerCase()) ||
-          loc.region.toLowerCase().includes(query.toLowerCase())
-        )
-        .slice(0, 5)
-        .map((loc, index) => ({
-          id: `common-${index}`,
-          name: loc.name,
-          address: loc.region,
-          latitude: 0,
-          longitude: 0,
-        }));
-
-      if (filteredCommon.length > 0) {
-        setSuggestions(filteredCommon);
+      const googleResults = await searchWithGooglePlaces(query);
+      
+      if (googleResults.length > 0) {
+        setSuggestions(googleResults);
         setShowSuggestions(true);
-      }
-
-      if (Platform.OS !== "web") {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === "granted") {
-          const geocoded = await Location.geocodeAsync(query);
-          
-          if (geocoded.length > 0) {
-            const geocodedSuggestions = await Promise.all(
-              geocoded.slice(0, 3).map(async (coord, index) => {
-                const [address] = await Location.reverseGeocodeAsync({
-                  latitude: coord.latitude,
-                  longitude: coord.longitude,
-                });
-                
-                const name = address?.name || address?.street || query;
-                const addressParts = [
-                  address?.city,
-                  address?.region,
-                  address?.country,
-                ].filter(Boolean);
-                
-                return {
-                  id: `geo-${index}`,
-                  name: name,
-                  address: addressParts.join(", ") || "Location found",
-                  latitude: coord.latitude,
-                  longitude: coord.longitude,
-                };
-              })
-            );
-
-            const existingNames = new Set(filteredCommon.map(s => s.name.toLowerCase()));
-            const uniqueGeocoded = geocodedSuggestions.filter(
-              s => !existingNames.has(s.name.toLowerCase())
-            );
-
-            setSuggestions([...filteredCommon, ...uniqueGeocoded].slice(0, 6));
-          }
-        }
+      } else {
+        setSuggestions([]);
+        setShowSuggestions(false);
       }
     } catch (error) {
       console.log("Location search error:", error);
+      setSuggestions([]);
     } finally {
       setIsSearching(false);
     }
-  }, []);
+  }, [searchWithGooglePlaces]);
 
   const handleTextChange = useCallback((text: string) => {
     onChangeText(text);
@@ -164,7 +157,8 @@ export function LocationAutocomplete({
   }, [onChangeText, searchLocations]);
 
   const handleSelectSuggestion = useCallback((suggestion: LocationSuggestion) => {
-    onChangeText(`${suggestion.name}, ${suggestion.address}`);
+    const displayText = suggestion.address ? `${suggestion.name}, ${suggestion.address}` : suggestion.name;
+    onChangeText(displayText);
     onSelectLocation(suggestion);
     setShowSuggestions(false);
     setSuggestions([]);
