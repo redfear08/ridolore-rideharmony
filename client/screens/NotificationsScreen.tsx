@@ -1,5 +1,5 @@
-import React from "react";
-import { StyleSheet, View, FlatList } from "react-native";
+import React, { useState, useCallback } from "react";
+import { StyleSheet, View, FlatList, RefreshControl } from "react-native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -27,6 +27,13 @@ export default function NotificationsScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    setRefreshing(false);
+  }, []);
 
   const getNotificationIcon = (type: Notification["type"]) => {
     switch (type) {
@@ -81,6 +88,15 @@ export default function NotificationsScreen() {
         ]}
         scrollIndicatorInsets={{ bottom: insets.bottom }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+            progressViewOffset={headerHeight}
+          />
+        }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <View style={[styles.emptyIcon, { backgroundColor: theme.backgroundDefault }]}>

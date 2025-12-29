@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { StyleSheet, View, Pressable, Alert, Image, Platform } from "react-native";
+import React, { useState, useCallback } from "react";
+import { StyleSheet, View, Pressable, Alert, Image, Platform, RefreshControl } from "react-native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -26,9 +26,16 @@ export default function ProfileScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { profile, updateProfile, clearProfile } = useProfile();
-  const { rides } = useRides();
+  const { rides, refreshRides } = useRides();
   const { signOut } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshRides();
+    setRefreshing(false);
+  }, [refreshRides]);
 
   const completedRides = rides.filter((r) => r.status === "completed").length;
   const totalRides = rides.length;
@@ -119,6 +126,15 @@ export default function ProfileScreen() {
         ]}
         scrollIndicatorInsets={{ bottom: insets.bottom }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+            progressViewOffset={headerHeight}
+          />
+        }
       >
         <View style={styles.profileHeader}>
           <Pressable onPress={handlePickImage} style={styles.avatarContainer}>

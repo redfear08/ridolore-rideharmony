@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { StyleSheet, View, Share, Platform } from "react-native";
+import React, { useEffect, useState, useCallback } from "react";
+import { StyleSheet, View, Share, Platform, ScrollView, RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -22,8 +22,17 @@ export default function QRCodeShareScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<QRCodeShareRouteProp>();
-  const { getRide } = useRides();
+  const { getRide, refreshRides } = useRides();
   const [ride, setRide] = useState(getRide(route.params.rideId));
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshRides();
+    const updatedRide = getRide(route.params.rideId);
+    setRide(updatedRide);
+    setRefreshing(false);
+  }, [refreshRides, getRide, route.params.rideId]);
 
   useEffect(() => {
     const updatedRide = getRide(route.params.rideId);
@@ -64,14 +73,23 @@ export default function QRCodeShareScreen() {
 
   return (
     <ThemedView style={styles.container}>
-      <View
-        style={[
+      <ScrollView
+        contentContainerStyle={[
           styles.content,
           {
             paddingTop: Spacing.xl,
             paddingBottom: insets.bottom + Spacing.xl,
           },
         ]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+          />
+        }
       >
         <View style={styles.qrSection}>
           <Card style={styles.qrCard}>
@@ -145,7 +163,7 @@ export default function QRCodeShareScreen() {
             Start Ride
           </Button>
         </View>
-      </View>
+      </ScrollView>
     </ThemedView>
   );
 }
@@ -155,7 +173,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: Spacing.xl,
   },
   errorContainer: {

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -7,6 +7,7 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -30,7 +31,16 @@ export default function GroupChatScreen() {
   const { profile } = useProfile();
   const [ride, setRide] = useState(getRide(route.params.rideId));
   const [messageText, setMessageText] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshRides();
+    const updatedRide = getRide(route.params.rideId);
+    setRide(updatedRide);
+    setRefreshing(false);
+  }, [refreshRides, getRide, route.params.rideId]);
 
   useEffect(() => {
     const updatedRide = getRide(route.params.rideId);
@@ -147,6 +157,14 @@ export default function GroupChatScreen() {
               flatListRef.current?.scrollToEnd({ animated: true });
             }
           }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.primary}
+              colors={[theme.primary]}
+            />
+          }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Feather name="message-circle" size={48} color={theme.textSecondary} />

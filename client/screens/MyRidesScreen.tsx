@@ -1,5 +1,5 @@
-import React from "react";
-import { StyleSheet, View, FlatList } from "react-native";
+import React, { useState, useCallback } from "react";
+import { StyleSheet, View, FlatList, RefreshControl } from "react-native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -21,7 +21,14 @@ export default function MyRidesScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { rides } = useRides();
+  const { rides, refreshRides } = useRides();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshRides();
+    setRefreshing(false);
+  }, [refreshRides]);
 
   const renderRideItem = ({ item }: { item: Ride }) => {
     const statusColor =
@@ -110,6 +117,15 @@ export default function MyRidesScreen() {
         ]}
         scrollIndicatorInsets={{ bottom: insets.bottom }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+            progressViewOffset={headerHeight}
+          />
+        }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <View style={[styles.emptyIcon, { backgroundColor: theme.backgroundDefault }]}>

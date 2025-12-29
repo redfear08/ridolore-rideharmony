@@ -1,5 +1,5 @@
-import React from "react";
-import { StyleSheet, View, Image, ScrollView } from "react-native";
+import React, { useState, useCallback } from "react";
+import { StyleSheet, View, Image, ScrollView, RefreshControl } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { Feather } from "@expo/vector-icons";
@@ -20,8 +20,15 @@ export default function RiderProfileScreen() {
   const headerHeight = useHeaderHeight();
   const { theme } = useTheme();
   const route = useRoute<RiderProfileRouteProp>();
-  const { rides } = useRides();
+  const { rides, refreshRides } = useRides();
   const { profile } = useProfile();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshRides();
+    setRefreshing(false);
+  }, [refreshRides]);
 
   const allRiders = rides.flatMap((r) => r.riders);
   const rider = allRiders.find((r) => r.id === route.params.riderId);
@@ -49,6 +56,15 @@ export default function RiderProfileScreen() {
           },
         ]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+            progressViewOffset={headerHeight}
+          />
+        }
       >
         <View style={styles.profileHeader}>
           {rider.profilePicture ? (

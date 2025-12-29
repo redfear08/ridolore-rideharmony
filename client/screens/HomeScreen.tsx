@@ -1,5 +1,5 @@
-import React from "react";
-import { StyleSheet, ScrollView, View, Pressable } from "react-native";
+import React, { useState, useCallback } from "react";
+import { StyleSheet, ScrollView, View, Pressable, RefreshControl } from "react-native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -23,7 +23,14 @@ export default function HomeScreen() {
   const { theme } = useTheme();
   const { moderateScale, wp, isSmallScreen } = useResponsive();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { rides } = useRides();
+  const { rides, refreshRides } = useRides();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refreshRides();
+    setRefreshing(false);
+  }, [refreshRides]);
 
   const upcomingRides = rides.filter((r) => r.status === "waiting" || r.status === "active");
   const spacing = {
@@ -49,6 +56,15 @@ export default function HomeScreen() {
         ]}
         scrollIndicatorInsets={{ bottom: insets.bottom }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.primary}
+            colors={[theme.primary]}
+            progressViewOffset={headerHeight}
+          />
+        }
       >
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
