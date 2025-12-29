@@ -429,9 +429,25 @@ export async function joinRide(rideId: string, rider: Rider): Promise<void> {
   const existingRider = ride.riders.find((r) => r.id === rider.id);
   if (existingRider) return;
   
-  const updatedRiders = [...ride.riders, rider];
-  const updatedRiderIds = [...ride.riderIds, rider.id];
-  await updateRide(rideId, { riders: updatedRiders, riderIds: updatedRiderIds });
+  const cleanRider: Record<string, any> = {
+    id: rider.id,
+    name: rider.name || "",
+    vehicleName: rider.vehicleName || "",
+    vehicleNumber: rider.vehicleNumber || "",
+  };
+  if (rider.photoUri) {
+    cleanRider.photoUri = rider.photoUri;
+  }
+  
+  const updatedRiders = [...ride.riders, cleanRider as Rider];
+  const updatedRiderIds = [...(ride.riderIds || []), rider.id];
+  
+  const docRef = doc(getDb_(), "rides", rideId);
+  await updateDoc(docRef, {
+    riders: updatedRiders,
+    riderIds: updatedRiderIds,
+    updatedAt: Timestamp.now(),
+  });
 }
 
 export async function leaveRide(rideId: string, riderId: string): Promise<void> {

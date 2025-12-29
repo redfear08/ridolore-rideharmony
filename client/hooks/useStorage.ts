@@ -278,11 +278,14 @@ export function useRides() {
   const joinRide = useCallback(async (rideId: string, rider: Rider) => {
     const fbRider: FirebaseRider = {
       id: rider.id,
-      name: rider.name,
-      vehicleName: rider.vehicleName,
-      vehicleNumber: rider.vehicleNumber,
-      photoUri: rider.profilePicture,
+      name: rider.name || "",
+      vehicleName: rider.vehicleName || "",
+      vehicleNumber: rider.vehicleNumber || "",
     };
+    
+    if (rider.profilePicture) {
+      fbRider.photoUri = rider.profilePicture;
+    }
     
     await firebaseJoinRide(rideId, fbRider);
     
