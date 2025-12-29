@@ -24,6 +24,7 @@ export default function RegisterScreen() {
   const navigation = useNavigation<RegisterScreenNavigationProp>();
   const { signUp } = useAuth();
 
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -31,7 +32,7 @@ export default function RegisterScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleRegister = async () => {
-    if (!email.trim() || !password.trim() || !confirmPassword.trim()) {
+    if (!name.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
       Alert.alert("Missing Information", "Please fill in all fields.");
       return;
     }
@@ -47,7 +48,7 @@ export default function RegisterScreen() {
     }
 
     setIsLoading(true);
-    const result = await signUp(email.trim(), password);
+    const result = await signUp(email.trim(), password, name.trim());
     setIsLoading(false);
 
     if (!result.success) {
@@ -76,6 +77,24 @@ export default function RegisterScreen() {
         </View>
 
         <View style={styles.form}>
+          <View style={styles.inputContainer}>
+            <ThemedText type="small" style={styles.label}>
+              Full Name
+            </ThemedText>
+            <View style={[styles.inputWrapper, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+              <Feather name="user" size={20} color={theme.textSecondary} />
+              <TextInput
+                style={[styles.input, { color: theme.text }]}
+                placeholder="Enter your full name"
+                placeholderTextColor={theme.textSecondary}
+                value={name}
+                onChangeText={setName}
+                autoCapitalize="words"
+                autoComplete="name"
+              />
+            </View>
+          </View>
+
           <View style={styles.inputContainer}>
             <ThemedText type="small" style={styles.label}>
               Email
