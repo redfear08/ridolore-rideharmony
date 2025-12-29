@@ -232,7 +232,7 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
     }
   });
   
-  await updateDoc(docRef, cleanUpdates);
+  await setDoc(docRef, cleanUpdates, { merge: true });
 }
 
 export async function createRide(userId: string, rideData: Omit<Ride, "id" | "creatorId" | "createdAt" | "updatedAt" | "joinCode" | "riderIds">): Promise<string> {
