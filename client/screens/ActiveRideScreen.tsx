@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, View, Pressable, Alert, Platform } from "react-native";
+import { StyleSheet, View, Pressable, Alert, Platform, Linking } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -14,6 +14,11 @@ import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useRides, useProfile, Rider, Ride } from "@/hooks/useStorage";
 import { getDirections } from "@/lib/googleMaps";
+import { 
+  updateRiderLocation, 
+  subscribeToRiderLocations,
+  RiderLocation 
+} from "@/lib/firebase";
 
 type ActiveRideRouteProp = RouteProp<RootStackParamList, "ActiveRide">;
 
@@ -34,13 +39,16 @@ export default function ActiveRideScreen() {
   const [ride, setRide] = useState<Ride | undefined>(undefined);
   const [isLoadingRide, setIsLoadingRide] = useState(true);
   const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
+  const [riderLocations, setRiderLocations] = useState<RiderLocation[]>([]);
   const [showRidersList, setShowRidersList] = useState(false);
   const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
   const [destinationCoord, setDestinationCoord] = useState<Coordinate | null>(null);
   const [sourceCoord, setSourceCoord] = useState<Coordinate | null>(null);
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
+  const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
   const hasSetupFallbackRoute = useRef(false);
   const hasFetchedFromFirebase = useRef(false);
+  const lastLocationUpdate = useRef<{ lat: number; lng: number; time: number } | null>(null);
 
   useEffect(() => {
     const loadRide = async () => {
@@ -68,11 +76,51 @@ export default function ActiveRideScreen() {
 
   useEffect(() => {
     let locationSubscription: Location.LocationSubscription | null = null;
+    const rideId = route.params.rideId;
+
+    const shouldUpdateFirebase = (lat: number, lng: number): boolean => {
+      const now = Date.now();
+      const last = lastLocationUpdate.current;
+      
+      if (!last) return true;
+      
+      const timeDiff = now - last.time;
+      const distance = Math.sqrt(
+        Math.pow((lat - last.lat) * 111320, 2) + 
+        Math.pow((lng - last.lng) * 111320 * Math.cos(lat * Math.PI / 180), 2)
+      );
+      
+      return distance >= 5 || timeDiff >= 5000;
+    };
+
+    const publishLocation = async (loc: Location.LocationObject) => {
+      if (!profile?.id || !profile?.name) return;
+      
+      const lat = loc.coords.latitude;
+      const lng = loc.coords.longitude;
+      
+      if (!shouldUpdateFirebase(lat, lng)) return;
+      
+      try {
+        await updateRiderLocation(rideId, profile.id, profile.name, {
+          latitude: lat,
+          longitude: lng,
+          heading: loc.coords.heading ?? undefined,
+          speed: loc.coords.speed ?? undefined,
+          accuracy: loc.coords.accuracy ?? undefined,
+        });
+        lastLocationUpdate.current = { lat, lng, time: Date.now() };
+      } catch (error) {
+        console.error("Failed to update location:", error);
+      }
+    };
 
     const startLocationTracking = async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        if (Platform.OS === "web") {
+      const permissionResponse = await Location.requestForegroundPermissionsAsync();
+      if (permissionResponse.status !== "granted") {
+        if (permissionResponse.status === "denied" && !permissionResponse.canAskAgain && Platform.OS !== "web") {
+          setLocationPermissionDenied(true);
+        } else if (Platform.OS === "web") {
           window.alert("Location permission is required for live tracking.");
         } else {
           Alert.alert("Permission Denied", "Location permission is required for live tracking.");
@@ -81,19 +129,21 @@ export default function ActiveRideScreen() {
       }
 
       const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
+        accuracy: Location.Accuracy.BestForNavigation,
       });
       const currentLocation = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
       };
       setUserLocation(currentLocation);
+      publishLocation(location);
 
       locationSubscription = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.High,
-          distanceInterval: 10,
-          timeInterval: 5000,
+          accuracy: Location.Accuracy.BestForNavigation,
+          distanceInterval: 5,
+          timeInterval: 2000,
+          mayShowUserSettingsDialog: true,
         },
         (loc) => {
           const newLocation = {
@@ -101,6 +151,7 @@ export default function ActiveRideScreen() {
             longitude: loc.coords.longitude,
           };
           setUserLocation(newLocation);
+          publishLocation(loc);
         }
       );
     };
@@ -110,7 +161,18 @@ export default function ActiveRideScreen() {
     return () => {
       locationSubscription?.remove();
     };
-  }, []);
+  }, [route.params.rideId, profile?.id, profile?.name]);
+
+  useEffect(() => {
+    const rideId = route.params.rideId;
+    const unsubscribe = subscribeToRiderLocations(rideId, (locations) => {
+      setRiderLocations(locations);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [route.params.rideId]);
 
   useEffect(() => {
     const fetchRoute = async () => {
@@ -173,26 +235,30 @@ export default function ActiveRideScreen() {
   };
 
   useEffect(() => {
-    if (mapRef.current && userLocation && destinationCoord && Platform.OS !== "web") {
-      const allCoords = [userLocation, destinationCoord];
+    if (mapRef.current && userLocation && Platform.OS !== "web") {
+      const allCoords: Coordinate[] = [userLocation];
       
-      if (ride?.riders) {
-        ride.riders.forEach((_, index) => {
-          allCoords.push({
-            latitude: userLocation.latitude + (Math.random() - 0.5) * 0.015,
-            longitude: userLocation.longitude + (Math.random() - 0.5) * 0.015,
-          });
-        });
+      if (destinationCoord) {
+        allCoords.push(destinationCoord);
       }
       
-      setTimeout(() => {
-        mapRef.current?.fitToCoordinates(allCoords, {
-          edgePadding: { top: 200, right: 50, bottom: 100, left: 50 },
-          animated: true,
+      riderLocations.forEach((loc) => {
+        allCoords.push({
+          latitude: loc.latitude,
+          longitude: loc.longitude,
         });
-      }, 500);
+      });
+      
+      if (allCoords.length > 1) {
+        setTimeout(() => {
+          mapRef.current?.fitToCoordinates(allCoords, {
+            edgePadding: { top: 200, right: 50, bottom: 100, left: 50 },
+            animated: true,
+          });
+        }, 500);
+      }
     }
-  }, [userLocation, destinationCoord, ride?.riders]);
+  }, [userLocation, destinationCoord, riderLocations]);
 
   const handleEndRide = async () => {
     const doEndRide = async () => {
@@ -274,6 +340,47 @@ export default function ActiveRideScreen() {
     }
   };
 
+  const handleOpenSettings = async () => {
+    try {
+      await Linking.openSettings();
+    } catch (error) {
+      console.error("Could not open settings:", error);
+    }
+  };
+
+  if (locationPermissionDenied) {
+    return (
+      <ThemedView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <View style={[styles.iconCircle, { backgroundColor: theme.primary }]}>
+            <Feather name="map-pin" size={24} color="#FFFFFF" />
+          </View>
+          <ThemedText type="h3" style={{ marginTop: Spacing.md, textAlign: "center" }}>
+            Location Permission Required
+          </ThemedText>
+          <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center", marginTop: Spacing.sm }}>
+            Please enable location access in Settings to track your ride in real-time.
+          </ThemedText>
+          <Pressable
+            style={({ pressed }) => [
+              styles.settingsButton,
+              { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1, marginTop: Spacing.lg },
+            ]}
+            onPress={handleOpenSettings}
+          >
+            <Feather name="settings" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+            <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "600" }}>
+              Open Settings
+            </ThemedText>
+          </Pressable>
+          <Pressable onPress={() => navigation.goBack()} style={{ marginTop: Spacing.md }}>
+            <ThemedText type="link">Go Back</ThemedText>
+          </Pressable>
+        </View>
+      </ThemedView>
+    );
+  }
+
   if (isLoadingRide) {
     return (
       <ThemedView style={styles.container}>
@@ -308,11 +415,12 @@ export default function ActiveRideScreen() {
   };
 
   const riders = ride.riders || [];
-  const mockRiderLocations = riders.map((rider, index) => ({
-    id: rider.id,
-    name: rider.name || "Rider",
-    latitude: (userLocation?.latitude || 37.78825) + (Math.sin(index * 1.5) * 0.008),
-    longitude: (userLocation?.longitude || -122.4324) + (Math.cos(index * 1.5) * 0.008),
+  
+  const realRiderLocations = riderLocations.map((loc) => ({
+    id: loc.riderId,
+    name: loc.riderName,
+    latitude: loc.latitude,
+    longitude: loc.longitude,
   }));
 
   return (
@@ -324,7 +432,7 @@ export default function ActiveRideScreen() {
         userLocation={userLocation}
         destinationCoord={destinationCoord}
         routeCoordinates={routeCoordinates}
-        riderLocations={mockRiderLocations}
+        riderLocations={realRiderLocations}
         currentUserId={profile?.id}
         theme={{
           accent: theme.accent,
@@ -542,5 +650,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     ...Shadows.card,
+  },
+  settingsButton: {
+    flexDirection: "row",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 48,
   },
 });

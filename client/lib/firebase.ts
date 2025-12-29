@@ -565,3 +565,83 @@ export function subscribeToRide(rideId: string, callback: (ride: Ride | null) =>
     }
   });
 }
+
+export interface RiderLocation {
+  riderId: string;
+  riderName: string;
+  latitude: number;
+  longitude: number;
+  heading?: number;
+  speed?: number;
+  accuracy?: number;
+  updatedAt: Date;
+}
+
+export async function updateRiderLocation(
+  rideId: string,
+  riderId: string,
+  riderName: string,
+  location: {
+    latitude: number;
+    longitude: number;
+    heading?: number;
+    speed?: number;
+    accuracy?: number;
+  }
+): Promise<void> {
+  if (!isFirebaseConfigured) {
+    throw new Error("Firebase is not configured.");
+  }
+
+  const locationDoc = doc(getDb_(), "rides", rideId, "locations", riderId);
+  
+  const locationData: Record<string, any> = {
+    riderId,
+    riderName,
+    latitude: location.latitude,
+    longitude: location.longitude,
+    updatedAt: Timestamp.now(),
+  };
+  
+  if (location.heading !== undefined) {
+    locationData.heading = location.heading;
+  }
+  if (location.speed !== undefined) {
+    locationData.speed = location.speed;
+  }
+  if (location.accuracy !== undefined) {
+    locationData.accuracy = location.accuracy;
+  }
+
+  await setDoc(locationDoc, locationData);
+}
+
+export function subscribeToRiderLocations(
+  rideId: string,
+  callback: (locations: RiderLocation[]) => void
+) {
+  if (!isFirebaseConfigured) {
+    callback([]);
+    return () => {};
+  }
+
+  const locationsRef = collection(getDb_(), "rides", rideId, "locations");
+
+  return onSnapshot(locationsRef, (snapshot) => {
+    const locations: RiderLocation[] = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      locations.push({
+        riderId: data.riderId,
+        riderName: data.riderName || "Rider",
+        latitude: data.latitude,
+        longitude: data.longitude,
+        heading: data.heading,
+        speed: data.speed,
+        accuracy: data.accuracy,
+        updatedAt: data.updatedAt?.toDate() || new Date(),
+      });
+    });
+    callback(locations);
+  });
+}
