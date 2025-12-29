@@ -6,6 +6,8 @@ RideSync is a mobile application for motorcycle/vehicle riders to create and joi
 ## Current State
 Firebase integration complete with Authentication and Firestore for cloud data persistence. Users can sign in across multiple devices with the same credentials. All data is stored in Firebase Firestore.
 
+**Google Maps Integration:** Real Google Maps routes are now displayed using the Directions API. Location autocomplete uses Google Places API (New). Ride coordinates (source, destination, waypoints) are stored in Firebase and used for route display.
+
 ## Tech Stack
 - **Frontend**: React Native with Expo (Expo Go compatible)
 - **Backend**: Express.js + Firebase (Firestore + Auth)
@@ -84,5 +86,4 @@ client/
 ## Next Phase Features
 - Real-time WebSocket location updates
 - Push notifications for SOS alerts
-- Enhanced route visualization
 - Ride search and filters
