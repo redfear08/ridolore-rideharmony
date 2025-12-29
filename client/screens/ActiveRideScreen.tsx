@@ -38,6 +38,7 @@ export default function ActiveRideScreen() {
   const [destinationCoord, setDestinationCoord] = useState<Coordinate | null>(null);
   const [sourceCoord, setSourceCoord] = useState<Coordinate | null>(null);
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
+  const hasSetupFallbackRoute = useRef(false);
 
   useEffect(() => {
     if (rides.length > 0) {
@@ -92,8 +93,6 @@ export default function ActiveRideScreen() {
     };
   }, []);
 
-  const hasSetupFallbackRoute = useRef(false);
-  
   useEffect(() => {
     const fetchRoute = async () => {
       if (!ride) return;
@@ -110,8 +109,8 @@ export default function ActiveRideScreen() {
           const waypointCoordsList = ride.waypointCoords || [];
           const directionsResult = await getDirections(srcCoords, destCoords, waypointCoordsList);
           
-          if (directionsResult && directionsResult.polylinePoints.length > 0) {
-            setRouteCoordinates(directionsResult.polylinePoints);
+          if (directionsResult && directionsResult.coordinates.length > 0) {
+            setRouteCoordinates(directionsResult.coordinates);
           } else {
             setRouteCoordinates(generateFallbackRoute(srcCoords, destCoords));
           }
