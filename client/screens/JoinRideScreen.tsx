@@ -12,14 +12,14 @@ import { Button } from "@/components/Button";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
-import { useProfile, useRides, parseQRData } from "@/hooks/useStorage";
+import { useProfile, useRides, parseQRData, Ride } from "@/hooks/useStorage";
 
 export default function JoinRideScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { profile } = useProfile();
-  const { rides, joinRide, refreshRides } = useRides();
+  const { rides, joinRide, findRideByCode, refreshRides } = useRides();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [manualCode, setManualCode] = useState("");
@@ -32,9 +32,9 @@ export default function JoinRideScreen() {
   };
 
   const processQRCode = async (data: string) => {
-    const rideId = parseQRData(data);
+    const joinCodeOrId = parseQRData(data);
     
-    if (!rideId) {
+    if (!joinCodeOrId) {
       Alert.alert("Invalid QR Code", "This QR code is not a valid RideSync ride.", [
         { text: "OK", onPress: () => setScanned(false) },
       ]);
@@ -55,18 +55,26 @@ export default function JoinRideScreen() {
       return;
     }
 
-    const ride = rides.find((r) => r.id === rideId);
+    let ride = rides.find((r) => r.id === joinCodeOrId || r.joinCode === joinCodeOrId);
+    
+    if (!ride) {
+      try {
+        ride = await findRideByCode(joinCodeOrId) || undefined;
+      } catch (error) {
+        console.error("Error finding ride:", error);
+      }
+    }
     
     if (!ride) {
       Alert.alert(
         "Ride Not Found",
-        "This ride doesn't exist or has ended. In a full version, this would sync with the server.",
-        [{ text: "OK", onPress: () => navigation.goBack() }]
+        "This ride doesn't exist or has ended.",
+        [{ text: "OK", onPress: () => { setScanned(false); } }]
       );
       return;
     }
 
-    await joinRide(rideId, {
+    await joinRide(ride.id, {
       id: profile.id,
       name: profile.name,
       vehicleName: profile.vehicleName,
@@ -80,7 +88,7 @@ export default function JoinRideScreen() {
       {
         text: "View Ride",
         onPress: () => {
-          navigation.replace("ActiveRide", { rideId });
+          navigation.replace("ActiveRide", { rideId: ride!.id });
         },
       },
     ]);

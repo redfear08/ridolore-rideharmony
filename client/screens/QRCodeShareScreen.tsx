@@ -32,9 +32,10 @@ export default function QRCodeShareScreen() {
 
   const handleShare = async () => {
     try {
-      const qrData = generateQRData(route.params.rideId);
+      const joinCode = ride?.joinCode || route.params.rideId;
+      const qrData = generateQRData(route.params.rideId, ride?.joinCode);
       await Share.share({
-        message: `Join my ride group on RideSync! Scan this code or use: ${qrData}`,
+        message: `Join my ride group on RideSync! Use code: ${joinCode}`,
         title: "Join My Ride",
       });
     } catch (error) {
@@ -57,8 +58,9 @@ export default function QRCodeShareScreen() {
     );
   }
 
-  const qrData = generateQRData(route.params.rideId);
+  const qrData = generateQRData(route.params.rideId, ride.joinCode);
   const riderCount = ride.riders?.length || 1;
+  const joinCode = ride.joinCode || route.params.rideId;
 
   return (
     <ThemedView style={styles.container}>
@@ -75,8 +77,16 @@ export default function QRCodeShareScreen() {
           <Card style={styles.qrCard}>
             <QRCodeDisplay value={qrData} size={200} />
           </Card>
+          <View style={[styles.codeContainer, { backgroundColor: theme.backgroundDefault }]}>
+            <ThemedText type="small" style={{ color: theme.textSecondary }}>
+              Join Code:
+            </ThemedText>
+            <ThemedText type="h3" style={{ color: theme.primary, letterSpacing: 2 }}>
+              {joinCode}
+            </ThemedText>
+          </View>
           <ThemedText type="small" style={{ color: theme.textSecondary, textAlign: "center" }}>
-            Share this QR code with other riders to join your group
+            Share this QR code or join code with other riders
           </ThemedText>
         </View>
 
@@ -163,6 +173,13 @@ const styles = StyleSheet.create({
     padding: Spacing["2xl"],
     alignItems: "center",
     justifyContent: "center",
+  },
+  codeContainer: {
+    alignItems: "center",
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.xs,
   },
   routeCard: {
     padding: Spacing.lg,
