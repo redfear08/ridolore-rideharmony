@@ -128,16 +128,29 @@ export default function CreateRideScreen() {
       return;
     }
 
-    const ride = await createRide(
-      {
-        source: source.trim(),
-        destination: destination.trim(),
-        waypoints,
-        departureTime: new Date().toISOString(),
-        createdBy: profile.id,
-      },
-      profile
-    );
+    const rideData: any = {
+      source: source.trim(),
+      destination: destination.trim(),
+      waypoints,
+      departureTime: new Date().toISOString(),
+      createdBy: profile.id,
+    };
+    
+    if (sourceLocation) {
+      rideData.sourceCoords = {
+        latitude: sourceLocation.latitude,
+        longitude: sourceLocation.longitude,
+      };
+    }
+    
+    if (destinationLocation) {
+      rideData.destinationCoords = {
+        latitude: destinationLocation.latitude,
+        longitude: destinationLocation.longitude,
+      };
+    }
+    
+    const ride = await createRide(rideData, profile);
 
     navigation.replace("QRCodeShare", { rideId: ride.id });
   };

@@ -13,6 +13,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useRides, useProfile, Rider } from "@/hooks/useStorage";
+import { getDirections } from "@/lib/googleMaps";
 
 type ActiveRideRouteProp = RouteProp<RootStackParamList, "ActiveRide">;
 
@@ -35,6 +36,15 @@ export default function ActiveRideScreen() {
   const [showRidersList, setShowRidersList] = useState(false);
   const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
   const [destinationCoord, setDestinationCoord] = useState<Coordinate | null>(null);
+  const [sourceCoord, setSourceCoord] = useState<Coordinate | null>(null);
+  const [isLoadingRoute, setIsLoadingRoute] = useState(false);
+
+  useEffect(() => {
+    if (rides.length > 0) {
+      const foundRide = getRide(route.params.rideId);
+      setRide(foundRide);
+    }
+  }, [route.params.rideId, rides, getRide]);
 
   useEffect(() => {
     let locationSubscription: Location.LocationSubscription | null = null;
@@ -58,13 +68,6 @@ export default function ActiveRideScreen() {
         longitude: location.coords.longitude,
       };
       setUserLocation(currentLocation);
-      
-      const destLat = currentLocation.latitude + 0.02;
-      const destLng = currentLocation.longitude + 0.015;
-      setDestinationCoord({ latitude: destLat, longitude: destLng });
-      
-      const routePoints = generateRoutePoints(currentLocation, { latitude: destLat, longitude: destLng });
-      setRouteCoordinates(routePoints);
 
       locationSubscription = await Location.watchPositionAsync(
         {
@@ -89,7 +92,49 @@ export default function ActiveRideScreen() {
     };
   }, []);
 
-  const generateRoutePoints = (start: Coordinate, end: Coordinate): Coordinate[] => {
+  const hasSetupFallbackRoute = useRef(false);
+  
+  useEffect(() => {
+    const fetchRoute = async () => {
+      if (!ride) return;
+      
+      const srcCoords = ride.sourceCoords;
+      const destCoords = ride.destinationCoords;
+      
+      if (srcCoords && destCoords) {
+        setSourceCoord(srcCoords);
+        setDestinationCoord(destCoords);
+        setIsLoadingRoute(true);
+        
+        try {
+          const waypointCoordsList = ride.waypointCoords || [];
+          const directionsResult = await getDirections(srcCoords, destCoords, waypointCoordsList);
+          
+          if (directionsResult && directionsResult.polylinePoints.length > 0) {
+            setRouteCoordinates(directionsResult.polylinePoints);
+          } else {
+            setRouteCoordinates(generateFallbackRoute(srcCoords, destCoords));
+          }
+        } catch (error) {
+          console.error("Error fetching directions:", error);
+          setRouteCoordinates(generateFallbackRoute(srcCoords, destCoords));
+        } finally {
+          setIsLoadingRoute(false);
+        }
+      } else if (userLocation && !hasSetupFallbackRoute.current) {
+        hasSetupFallbackRoute.current = true;
+        const destLat = userLocation.latitude + 0.02;
+        const destLng = userLocation.longitude + 0.015;
+        setSourceCoord(userLocation);
+        setDestinationCoord({ latitude: destLat, longitude: destLng });
+        setRouteCoordinates(generateFallbackRoute(userLocation, { latitude: destLat, longitude: destLng }));
+      }
+    };
+    
+    fetchRoute();
+  }, [ride, userLocation]);
+
+  const generateFallbackRoute = (start: Coordinate, end: Coordinate): Coordinate[] => {
     const points: Coordinate[] = [];
     const numPoints = 8;
     
@@ -108,13 +153,6 @@ export default function ActiveRideScreen() {
     
     return points;
   };
-
-  useEffect(() => {
-    if (rides.length > 0) {
-      const foundRide = getRide(route.params.rideId);
-      setRide(foundRide);
-    }
-  }, [route.params.rideId, rides, getRide]);
 
   useEffect(() => {
     if (mapRef.current && userLocation && destinationCoord && Platform.OS !== "web") {
