@@ -288,9 +288,10 @@ export default function ActiveRideScreen() {
     longitudeDelta: 0.03,
   };
 
-  const mockRiderLocations = ride.riders.map((rider, index) => ({
+  const riders = ride.riders || [];
+  const mockRiderLocations = riders.map((rider, index) => ({
     id: rider.id,
-    name: rider.name,
+    name: rider.name || "Rider",
     latitude: (userLocation?.latitude || 37.78825) + (Math.sin(index * 1.5) * 0.008),
     longitude: (userLocation?.longitude || -122.4324) + (Math.cos(index * 1.5) * 0.008),
   }));
@@ -373,14 +374,14 @@ export default function ActiveRideScreen() {
             >
               <Feather name="users" size={18} color={theme.text} style={{ marginRight: 6 }} />
               <ThemedText type="body" style={{ fontWeight: "600" }}>
-                {ride.riders.length}
+                {riders.length}
               </ThemedText>
             </Pressable>
           </View>
 
           {showRidersList ? (
             <View style={styles.ridersList}>
-              {ride.riders.map((rider) => (
+              {riders.map((rider) => (
                 <Pressable
                   key={rider.id}
                   style={({ pressed }) => [
@@ -391,16 +392,16 @@ export default function ActiveRideScreen() {
                 >
                   <View style={[styles.riderAvatar, { backgroundColor: theme.primary }]}>
                     <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "600" }}>
-                      {rider.name.charAt(0)}
+                      {(rider.name || "R").charAt(0)}
                     </ThemedText>
                   </View>
                   <View style={styles.riderDetails}>
                     <ThemedText type="body" style={{ fontWeight: "500" }}>
-                      {rider.name}
+                      {rider.name || "Unknown Rider"}
                       {rider.id === profile?.id ? " (You)" : ""}
                     </ThemedText>
                     <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                      {rider.vehicleName} - {rider.vehicleNumber}
+                      {rider.vehicleName || "Vehicle"} - {rider.vehicleNumber || "N/A"}
                     </ThemedText>
                   </View>
                 </Pressable>
