@@ -114,7 +114,7 @@ export default function ProfileScreen() {
           styles.content,
           {
             paddingTop: headerHeight + Spacing.xl,
-            paddingBottom: tabBarHeight + Spacing.xl + 80,
+            paddingBottom: tabBarHeight + Spacing.xl + insets.bottom + 100,
           },
         ]}
         scrollIndicatorInsets={{ bottom: insets.bottom }}
@@ -146,7 +146,7 @@ export default function ProfileScreen() {
         <Card style={styles.vehicleCard}>
           <View style={styles.vehicleHeader}>
             <Feather name="truck" size={20} color={theme.primary} />
-            <ThemedText type="h4">Vehicle Info</ThemedText>
+            <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Vehicle Info</ThemedText>
           </View>
           <View style={styles.vehicleDetails}>
             <View style={styles.vehicleRow}>
@@ -174,7 +174,7 @@ export default function ProfileScreen() {
               <ThemedText type="h2" style={{ color: theme.primary }}>
                 {totalRides}
               </ThemedText>
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
                 Total Rides
               </ThemedText>
             </View>
@@ -183,7 +183,7 @@ export default function ProfileScreen() {
               <ThemedText type="h2" style={{ color: theme.accent }}>
                 {completedRides}
               </ThemedText>
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
                 Completed
               </ThemedText>
             </View>
@@ -200,7 +200,7 @@ export default function ProfileScreen() {
           >
             <View style={styles.menuItemLeft}>
               <Feather name="edit-2" size={20} color={theme.text} />
-              <ThemedText type="body">Edit Profile</ThemedText>
+              <ThemedText type="body" style={{ marginLeft: Spacing.md }}>Edit Profile</ThemedText>
             </View>
             <Feather name="chevron-right" size={20} color={theme.textSecondary} />
           </Pressable>
@@ -208,13 +208,13 @@ export default function ProfileScreen() {
           <Pressable
             style={({ pressed }) => [
               styles.menuItem,
-              { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.7 : 1 },
+              { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.7 : 1, marginTop: Spacing.sm },
             ]}
             onPress={handleLogout}
           >
             <View style={styles.menuItemLeft}>
               <Feather name="log-out" size={20} color={theme.danger} />
-              <ThemedText type="body" style={{ color: theme.danger }}>
+              <ThemedText type="body" style={{ color: theme.danger, marginLeft: Spacing.md }}>
                 Log Out
               </ThemedText>
             </View>
@@ -295,14 +295,12 @@ const styles = StyleSheet.create({
   vehicleHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
     marginBottom: Spacing.lg,
   },
   vehicleDetails: {
-    gap: Spacing.sm,
   },
   vehicleRow: {
-    gap: Spacing.xs,
+    marginBottom: Spacing.xs,
   },
   divider: {
     height: 1,
@@ -322,14 +320,13 @@ const styles = StyleSheet.create({
   statItem: {
     flex: 1,
     alignItems: "center",
-    gap: Spacing.xs,
   },
   statDivider: {
     width: 1,
     height: 40,
   },
   menuSection: {
-    gap: Spacing.sm,
+    marginBottom: Spacing.xl,
   },
   menuItem: {
     flexDirection: "row",
@@ -341,6 +338,5 @@ const styles = StyleSheet.create({
   menuItemLeft: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.md,
   },
 });

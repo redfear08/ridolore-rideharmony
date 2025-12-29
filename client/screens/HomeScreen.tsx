@@ -113,8 +113,8 @@ export default function HomeScreen() {
               ]}
               onPress={() => navigation.navigate("JoinRide")}
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: theme.primary, width: moderateScale(48), height: moderateScale(48) }]}>
-                <Feather name="camera" size={isSmallScreen ? 20 : 24} color="#FFFFFF" />
+              <View style={[styles.quickActionIcon, { backgroundColor: theme.primary }]}>
+                <Feather name="camera" size={22} color="#FFFFFF" />
               </View>
               <ThemedText type="body" style={[styles.quickActionText, { marginTop: spacing.sm }]}>
                 Scan QR
@@ -130,8 +130,8 @@ export default function HomeScreen() {
               ]}
               onPress={() => navigation.navigate("CreateRide")}
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: theme.accent, width: moderateScale(48), height: moderateScale(48) }]}>
-                <Feather name="plus" size={isSmallScreen ? 20 : 24} color="#FFFFFF" />
+              <View style={[styles.quickActionIcon, { backgroundColor: theme.accent }]}>
+                <Feather name="plus" size={22} color="#FFFFFF" />
               </View>
               <ThemedText type="body" style={[styles.quickActionText, { marginTop: spacing.sm }]}>
                 Create Ride
@@ -152,7 +152,7 @@ export default function HomeScreen() {
               rides.slice(0, 3).map((ride, index) => (
                 <React.Fragment key={ride.id}>
                   {index > 0 && <View style={[styles.divider, { backgroundColor: theme.border, marginVertical: spacing.sm }]} />}
-                  <View style={[styles.activityItem, { gap: spacing.md, paddingVertical: spacing.sm }]}>
+                  <View style={[styles.activityItem, { paddingVertical: spacing.sm }]}>
                     <View style={[styles.activityIcon, { backgroundColor: theme.primary + "20", width: moderateScale(36), height: moderateScale(36) }]}>
                       <Feather
                         name={ride.status === "completed" ? "check-circle" : "navigation"}
@@ -160,11 +160,11 @@ export default function HomeScreen() {
                         color={theme.primary}
                       />
                     </View>
-                    <View style={styles.activityContent}>
+                    <View style={[styles.activityContent, { marginLeft: spacing.md }]}>
                       <ThemedText type="body" numberOfLines={1}>
                         {ride.status === "completed" ? "Completed ride to" : "Created ride to"} {ride.destination}
                       </ThemedText>
-                      <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                      <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: 2 }}>
                         {new Date(ride.createdAt).toLocaleDateString()}
                       </ThemedText>
                     </View>
@@ -216,6 +216,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   quickActionIcon: {
+    width: 48,
+    height: 48,
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",
@@ -234,7 +236,6 @@ const styles = StyleSheet.create({
   },
   activityContent: {
     flex: 1,
-    gap: 2,
   },
   divider: {
     height: 1,
