@@ -41,6 +41,7 @@ client/
 ├── hooks/
 │   ├── useStorage.ts    # AsyncStorage hooks for profile/rides
 │   ├── useTheme.ts      # Theme access hook
+│   ├── useResponsive.ts # Responsive design utilities (breakpoints, scaling)
 │   └── ...
 ├── navigation/
 │   ├── MainTabNavigator.tsx  # Bottom tab navigation

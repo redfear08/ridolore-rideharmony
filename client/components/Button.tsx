@@ -41,9 +41,9 @@ export function Button({
   const { isSmallScreen, moderateScale } = useResponsive();
   const scale = useSharedValue(1);
 
-  const buttonHeight = size === "small" ? moderateScale(40) : 
+  const buttonHeight = size === "small" ? Math.max(44, moderateScale(44)) : 
                        size === "large" ? moderateScale(56) : 
-                       isSmallScreen ? moderateScale(48) : moderateScale(52);
+                       Math.max(48, isSmallScreen ? moderateScale(48) : moderateScale(52));
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],

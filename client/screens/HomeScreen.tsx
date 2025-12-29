@@ -11,7 +11,8 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { useResponsive } from "@/hooks/useResponsive";
+import { BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useRides } from "@/hooks/useStorage";
 
@@ -20,10 +21,20 @@ export default function HomeScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
+  const { moderateScale, wp, isSmallScreen } = useResponsive();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { rides } = useRides();
 
   const upcomingRides = rides.filter((r) => r.status === "waiting" || r.status === "active");
+  const spacing = {
+    xs: moderateScale(4),
+    sm: moderateScale(8),
+    md: moderateScale(12),
+    lg: moderateScale(16),
+    xl: moderateScale(20),
+    "2xl": moderateScale(24),
+  };
+  const rideCardWidth = isSmallScreen ? wp(42) : Math.min(wp(45), 200);
 
   return (
     <ThemedView style={styles.container}>
@@ -31,8 +42,9 @@ export default function HomeScreen() {
         contentContainerStyle={[
           styles.content,
           {
-            paddingTop: headerHeight + Spacing.xl,
-            paddingBottom: tabBarHeight + Spacing.xl + 80,
+            paddingTop: headerHeight + spacing.xl,
+            paddingBottom: tabBarHeight + spacing.xl + 80,
+            paddingHorizontal: spacing.xl,
           },
         ]}
         scrollIndicatorInsets={{ bottom: insets.bottom }}
@@ -46,25 +58,25 @@ export default function HomeScreen() {
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalScroll}
+              contentContainerStyle={{ paddingRight: spacing.xl }}
             >
-              {upcomingRides.map((ride) => (
+              {upcomingRides.map((ride, index) => (
                 <Card
                   key={ride.id}
-                  style={styles.rideCard}
+                  style={{ width: rideCardWidth, padding: spacing.lg, marginRight: index < upcomingRides.length - 1 ? spacing.md : 0 }}
                   onPress={() => navigation.navigate("ActiveRide", { rideId: ride.id })}
                 >
-                  <View style={styles.rideCardContent}>
+                  <View>
                     <View style={[styles.iconCircle, { backgroundColor: theme.primary + "20" }]}>
-                      <Feather name="navigation" size={20} color={theme.primary} />
+                      <Feather name="navigation" size={isSmallScreen ? 18 : 20} color={theme.primary} />
                     </View>
-                    <ThemedText type="h4" style={styles.rideCardTitle} numberOfLines={1}>
+                    <ThemedText type="h4" style={{ marginTop: spacing.xs }} numberOfLines={1}>
                       {ride.destination}
                     </ThemedText>
                     <ThemedText type="small" style={{ color: theme.textSecondary }} numberOfLines={1}>
                       From {ride.source}
                     </ThemedText>
-                    <View style={styles.rideCardMeta}>
+                    <View style={[styles.rideCardMeta, { marginTop: spacing.sm }]}>
                       <Feather name="users" size={14} color={theme.textSecondary} />
                       <ThemedText type="small" style={{ color: theme.textSecondary, marginLeft: 4 }}>
                         {ride.riders?.length || 1} riders
@@ -75,10 +87,10 @@ export default function HomeScreen() {
               ))}
             </ScrollView>
           ) : (
-            <Card style={styles.emptyCard}>
+            <Card style={{ padding: spacing["2xl"] }}>
               <View style={styles.emptyContent}>
-                <Feather name="map" size={40} color={theme.textSecondary} />
-                <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.md }}>
+                <Feather name="map" size={isSmallScreen ? 36 : 40} color={theme.textSecondary} />
+                <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: spacing.md }}>
                   No upcoming rides
                 </ThemedText>
                 <ThemedText type="small" style={{ color: theme.textSecondary, textAlign: "center" }}>
@@ -89,62 +101,62 @@ export default function HomeScreen() {
           )}
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
+        <View style={[styles.section, { marginBottom: spacing["2xl"] }]}>
+          <View style={[styles.sectionHeader, { marginBottom: spacing.lg }]}>
             <ThemedText type="h3">Quick Actions</ThemedText>
           </View>
-          <View style={styles.quickActions}>
+          <View style={{ flexDirection: "row" }}>
             <Pressable
               style={({ pressed }) => [
                 styles.quickAction,
-                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.7 : 1 },
+                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.7 : 1, padding: spacing.lg, marginRight: spacing.md / 2 },
               ]}
               onPress={() => navigation.navigate("JoinRide")}
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: theme.primary }]}>
-                <Feather name="camera" size={24} color="#FFFFFF" />
+              <View style={[styles.quickActionIcon, { backgroundColor: theme.primary, width: moderateScale(48), height: moderateScale(48) }]}>
+                <Feather name="camera" size={isSmallScreen ? 20 : 24} color="#FFFFFF" />
               </View>
-              <ThemedText type="body" style={styles.quickActionText}>
+              <ThemedText type="body" style={[styles.quickActionText, { marginTop: spacing.sm }]}>
                 Scan QR
               </ThemedText>
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: spacing.xs }}>
                 Join a ride group
               </ThemedText>
             </Pressable>
             <Pressable
               style={({ pressed }) => [
                 styles.quickAction,
-                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.7 : 1 },
+                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.7 : 1, padding: spacing.lg, marginLeft: spacing.md / 2 },
               ]}
               onPress={() => navigation.navigate("CreateRide")}
             >
-              <View style={[styles.quickActionIcon, { backgroundColor: theme.accent }]}>
-                <Feather name="plus" size={24} color="#FFFFFF" />
+              <View style={[styles.quickActionIcon, { backgroundColor: theme.accent, width: moderateScale(48), height: moderateScale(48) }]}>
+                <Feather name="plus" size={isSmallScreen ? 20 : 24} color="#FFFFFF" />
               </View>
-              <ThemedText type="body" style={styles.quickActionText}>
+              <ThemedText type="body" style={[styles.quickActionText, { marginTop: spacing.sm }]}>
                 Create Ride
               </ThemedText>
-              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: spacing.xs }}>
                 Start a new group
               </ThemedText>
             </Pressable>
           </View>
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
+        <View style={[styles.section, { marginBottom: spacing["2xl"] }]}>
+          <View style={[styles.sectionHeader, { marginBottom: spacing.lg }]}>
             <ThemedText type="h3">Recent Activity</ThemedText>
           </View>
-          <Card style={styles.activityCard}>
+          <Card style={{ padding: spacing.lg }}>
             {rides.length > 0 ? (
               rides.slice(0, 3).map((ride, index) => (
                 <React.Fragment key={ride.id}>
-                  {index > 0 && <View style={[styles.divider, { backgroundColor: theme.border }]} />}
-                  <View style={styles.activityItem}>
-                    <View style={[styles.activityIcon, { backgroundColor: theme.primary + "20" }]}>
+                  {index > 0 && <View style={[styles.divider, { backgroundColor: theme.border, marginVertical: spacing.sm }]} />}
+                  <View style={[styles.activityItem, { gap: spacing.md, paddingVertical: spacing.sm }]}>
+                    <View style={[styles.activityIcon, { backgroundColor: theme.primary + "20", width: moderateScale(36), height: moderateScale(36) }]}>
                       <Feather
                         name={ride.status === "completed" ? "check-circle" : "navigation"}
-                        size={18}
+                        size={isSmallScreen ? 16 : 18}
                         color={theme.primary}
                       />
                     </View>
@@ -160,7 +172,7 @@ export default function HomeScreen() {
                 </React.Fragment>
               ))
             ) : (
-              <View style={styles.emptyActivity}>
+              <View style={[styles.emptyActivity, { paddingVertical: spacing.lg }]}>
                 <ThemedText type="small" style={{ color: theme.textSecondary }}>
                   No recent activity
                 </ThemedText>
@@ -177,28 +189,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
-    paddingHorizontal: Spacing.xl,
-  },
-  section: {
-    marginBottom: Spacing["2xl"],
-  },
+  content: {},
+  section: {},
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: Spacing.lg,
-  },
-  horizontalScroll: {
-    paddingRight: Spacing.xl,
-    gap: Spacing.md,
-  },
-  rideCard: {
-    width: 180,
-    padding: Spacing.lg,
-  },
-  rideCardContent: {
-    gap: Spacing.xs,
   },
   iconCircle: {
     width: 40,
@@ -206,57 +202,32 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: Spacing.sm,
-  },
-  rideCardTitle: {
-    marginTop: Spacing.xs,
   },
   rideCardMeta: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: Spacing.sm,
-  },
-  emptyCard: {
-    padding: Spacing["2xl"],
   },
   emptyContent: {
     alignItems: "center",
-    gap: Spacing.xs,
-  },
-  quickActions: {
-    flexDirection: "row",
-    gap: Spacing.md,
   },
   quickAction: {
     flex: 1,
-    padding: Spacing.lg,
     borderRadius: BorderRadius.md,
     alignItems: "center",
-    gap: Spacing.sm,
   },
   quickActionIcon: {
-    width: 48,
-    height: 48,
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",
   },
   quickActionText: {
     fontWeight: "600",
-    marginTop: Spacing.xs,
-  },
-  activityCard: {
-    padding: Spacing.lg,
   },
   activityItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.md,
-    paddingVertical: Spacing.sm,
   },
   activityIcon: {
-    width: 36,
-    height: 36,
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",
@@ -267,10 +238,8 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    marginVertical: Spacing.sm,
   },
   emptyActivity: {
-    paddingVertical: Spacing.lg,
     alignItems: "center",
   },
 });

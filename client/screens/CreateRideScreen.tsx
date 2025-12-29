@@ -12,6 +12,7 @@ import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { useTheme } from "@/hooks/useTheme";
+import { useResponsive } from "@/hooks/useResponsive";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useProfile, useRides } from "@/hooks/useStorage";
@@ -19,6 +20,7 @@ import { useProfile, useRides } from "@/hooks/useStorage";
 export default function CreateRideScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
+  const { moderateScale, isSmallScreen } = useResponsive();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { profile } = useProfile();
   const { createRide } = useRides();
@@ -28,6 +30,16 @@ export default function CreateRideScreen() {
   const [waypoints, setWaypoints] = useState<string[]>([]);
   const [newWaypoint, setNewWaypoint] = useState("");
   const [isLocating, setIsLocating] = useState(false);
+
+  const spacing = {
+    xs: moderateScale(4),
+    sm: moderateScale(8),
+    md: moderateScale(12),
+    lg: moderateScale(16),
+    xl: moderateScale(20),
+    "2xl": moderateScale(24),
+  };
+  const inputHeight = isSmallScreen ? moderateScale(44) : moderateScale(48);
 
   const handleUseCurrentLocation = async () => {
     setIsLocating(true);
