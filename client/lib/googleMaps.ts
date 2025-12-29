@@ -71,26 +71,68 @@ export async function getDirections(
   }
 
   try {
-    let url = `https://maps.googleapis.com/maps/api/directions/json?origin=${origin.latitude},${origin.longitude}&destination=${destination.latitude},${destination.longitude}&key=${GOOGLE_MAPS_API_KEY}`;
+    const requestBody: any = {
+      origin: {
+        location: {
+          latLng: {
+            latitude: origin.latitude,
+            longitude: origin.longitude,
+          },
+        },
+      },
+      destination: {
+        location: {
+          latLng: {
+            latitude: destination.latitude,
+            longitude: destination.longitude,
+          },
+        },
+      },
+      travelMode: "DRIVE",
+      routingPreference: "TRAFFIC_AWARE",
+      computeAlternativeRoutes: false,
+      languageCode: "en-US",
+      units: "METRIC",
+    };
 
     if (waypoints && waypoints.length > 0) {
-      const waypointsStr = waypoints
-        .map((wp) => `${wp.latitude},${wp.longitude}`)
-        .join("|");
-      url += `&waypoints=${encodeURIComponent(waypointsStr)}`;
+      requestBody.intermediates = waypoints.map((wp) => ({
+        location: {
+          latLng: {
+            latitude: wp.latitude,
+            longitude: wp.longitude,
+          },
+        },
+      }));
     }
 
-    const response = await fetch(url);
+    const response = await fetch(
+      "https://routes.googleapis.com/directions/v2:computeRoutes",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
+          "X-Goog-FieldMask": "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.viewport",
+        },
+        body: JSON.stringify(requestBody),
+      }
+    );
+
     const data = await response.json();
 
-    if (data.status !== "OK" || !data.routes || data.routes.length === 0) {
-      console.error("Directions API error:", data.status, data.error_message);
+    if (data.error) {
+      console.error("Routes API error:", data.error.message);
+      return null;
+    }
+
+    if (!data.routes || data.routes.length === 0) {
+      console.error("No routes found");
       return null;
     }
 
     const route = data.routes[0];
-    const leg = route.legs[0];
-    const polyline = route.overview_polyline?.points;
+    const polyline = route.polyline?.encodedPolyline;
 
     if (!polyline) {
       return null;
@@ -98,18 +140,26 @@ export async function getDirections(
 
     const coordinates = decodePolyline(polyline);
 
+    const distanceKm = route.distanceMeters ? (route.distanceMeters / 1000).toFixed(1) + " km" : "";
+    const durationMatch = route.duration?.match(/(\d+)s/);
+    const durationSecs = durationMatch ? parseInt(durationMatch[1]) : 0;
+    const durationMins = Math.round(durationSecs / 60);
+    const durationStr = durationMins >= 60 
+      ? `${Math.floor(durationMins / 60)} hr ${durationMins % 60} min` 
+      : `${durationMins} min`;
+
     return {
       coordinates,
-      distance: leg.distance?.text || "",
-      duration: leg.duration?.text || "",
+      distance: distanceKm,
+      duration: durationStr,
       bounds: {
         northeast: {
-          latitude: route.bounds?.northeast?.lat || destination.latitude,
-          longitude: route.bounds?.northeast?.lng || destination.longitude,
+          latitude: route.viewport?.high?.latitude || destination.latitude,
+          longitude: route.viewport?.high?.longitude || destination.longitude,
         },
         southwest: {
-          latitude: route.bounds?.southwest?.lat || origin.latitude,
-          longitude: route.bounds?.southwest?.lng || origin.longitude,
+          latitude: route.viewport?.low?.latitude || origin.latitude,
+          longitude: route.viewport?.low?.longitude || origin.longitude,
         },
       },
     };
