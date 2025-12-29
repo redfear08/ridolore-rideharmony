@@ -190,7 +190,7 @@ export default function ActiveRideScreen() {
         initialRegion={defaultRegion}
         userInterfaceStyle={isDark ? "dark" : "light"}
       >
-        {Platform.OS !== "web" && userLocation && Marker !== View ? (
+        {Platform.OS !== "web" && userLocation ? (
           <Marker coordinate={userLocation} anchor={{ x: 0.5, y: 0.5 }}>
             <View style={styles.userMarker}>
               <View style={[styles.userMarkerDot, { backgroundColor: theme.primary }]} />
@@ -198,7 +198,7 @@ export default function ActiveRideScreen() {
           </Marker>
         ) : null}
 
-        {Platform.OS !== "web" && Marker !== View ? mockRiderLocations
+        {Platform.OS !== "web" ? mockRiderLocations
           .filter((r) => r.id !== profile?.id)
           .map((rider) => (
             <Marker
@@ -214,15 +214,15 @@ export default function ActiveRideScreen() {
             </Marker>
           )) : null}
 
-        {Platform.OS !== "web" && userLocation && Polyline !== View ? (
+        {Platform.OS !== "web" && userLocation ? (
           <Polyline
             coordinates={[
               userLocation,
+              { latitude: userLocation.latitude + 0.01, longitude: userLocation.longitude + 0.005 },
               { latitude: userLocation.latitude + 0.02, longitude: userLocation.longitude + 0.01 },
             ]}
             strokeColor={theme.routeLine}
-            strokeWidth={4}
-            lineDashPattern={[1]}
+            strokeWidth={5}
           />
         ) : null}
       </MapViewWrapper>
