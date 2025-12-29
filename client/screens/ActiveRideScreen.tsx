@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, View, Pressable, Alert, Platform, Linking } from "react-native";
+import { StyleSheet, View, Pressable, Alert, Platform, Linking, Share } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -17,6 +17,7 @@ import { getDirections } from "@/lib/googleMaps";
 import { 
   updateRiderLocation, 
   subscribeToRiderLocations,
+  leaveRide,
   RiderLocation 
 } from "@/lib/firebase";
 
@@ -260,6 +261,8 @@ export default function ActiveRideScreen() {
     }
   }, [userLocation, destinationCoord, riderLocations]);
 
+  const isCaptain = profile?.id && ride?.creatorId === profile.id;
+
   const handleEndRide = async () => {
     const doEndRide = async () => {
       try {
@@ -286,6 +289,38 @@ export default function ActiveRideScreen() {
             text: "End Ride",
             style: "destructive",
             onPress: doEndRide,
+          },
+        ]
+      );
+    }
+  };
+
+  const handleLeaveRide = async () => {
+    const doLeaveRide = async () => {
+      try {
+        if (ride && profile?.id) {
+          await leaveRide(ride.id, profile.id);
+        }
+        navigation.popToTop();
+      } catch (error) {
+        console.error("Error leaving ride:", error);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm("Are you sure you want to leave this ride?")) {
+        await doLeaveRide();
+      }
+    } else {
+      Alert.alert(
+        "Leave Ride",
+        "Are you sure you want to leave this ride?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Leave",
+            style: "destructive",
+            onPress: doLeaveRide,
           },
         ]
       );
@@ -323,6 +358,18 @@ export default function ActiveRideScreen() {
 
   const handleOpenChat = () => {
     navigation.navigate("GroupChat", { rideId: route.params.rideId });
+  };
+
+  const handleShareQR = async () => {
+    try {
+      const joinCode = ride?.joinCode || route.params.rideId;
+      await Share.share({
+        message: `Join my ride group on RideSync! Use code: ${joinCode}\n\nOr scan the QR code in the app.`,
+        title: "Join My Ride",
+      });
+    } catch (error) {
+      console.error("Error sharing:", error);
+    }
   };
 
   const handleRiderPress = (rider: Rider | { id: string; name: string }) => {
@@ -457,10 +504,10 @@ export default function ActiveRideScreen() {
                 styles.endButton,
                 { backgroundColor: theme.danger, opacity: pressed ? 0.7 : 1 },
               ]}
-              onPress={handleEndRide}
+              onPress={isCaptain ? handleEndRide : handleLeaveRide}
             >
               <ThemedText type="small" style={{ color: "#FFFFFF", fontWeight: "700" }}>
-                END
+                {isCaptain ? "END" : "LEAVE"}
               </ThemedText>
             </Pressable>
           </View>
@@ -473,10 +520,17 @@ export default function ActiveRideScreen() {
               ]}
               onPress={handleOpenChat}
             >
-              <Feather name="message-circle" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-              <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "600" }}>
-                Chat
-              </ThemedText>
+              <Feather name="message-circle" size={16} color="#FFFFFF" />
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionButton,
+                { backgroundColor: theme.accent, opacity: pressed ? 0.8 : 1 },
+              ]}
+              onPress={handleShareQR}
+            >
+              <Feather name="share-2" size={16} color="#FFFFFF" />
             </Pressable>
 
             <Pressable
@@ -486,8 +540,7 @@ export default function ActiveRideScreen() {
               ]}
               onPress={handleSOS}
             >
-              <Feather name="alert-triangle" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
-              <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "700" }}>
+              <ThemedText type="small" style={{ color: "#FFFFFF", fontWeight: "700" }}>
                 SOS
               </ThemedText>
             </Pressable>
@@ -499,8 +552,8 @@ export default function ActiveRideScreen() {
               ]}
               onPress={() => setShowRidersList(!showRidersList)}
             >
-              <Feather name="users" size={18} color={theme.text} style={{ marginRight: 6 }} />
-              <ThemedText type="body" style={{ fontWeight: "600" }}>
+              <Feather name="users" size={16} color={theme.text} style={{ marginRight: 4 }} />
+              <ThemedText type="small" style={{ fontWeight: "600" }}>
                 {riders.length}
               </ThemedText>
             </Pressable>

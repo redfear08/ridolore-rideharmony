@@ -68,11 +68,13 @@ client/
 ## Key Features
 1. **Profile Setup**: Name, age, vehicle info, optional photo
 2. **Create Ride**: Set source, destination, waypoints with Google Places autocomplete
-3. **QR Code Sharing**: Generate and share ride invite codes
+3. **QR Code Sharing**: Generate and share ride invite codes (works on iOS and Android using react-native-qrcode-svg)
 4. **Join Ride**: Scan QR or enter code manually
 5. **Live Map**: Real-time rider positions with high-precision GPS tracking via Firebase
 6. **Group Chat**: In-ride messaging with haptic feedback
 7. **SOS Button**: Emergency alert to group
+8. **Captain Controls**: Only ride creator can end the ride; other riders can only leave
+9. **Share During Ride**: All participants can share QR code to invite more riders during active ride
 
 ## Design System
 - Primary: #2563EB (Blue)

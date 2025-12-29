@@ -65,6 +65,7 @@ export interface Ride {
   departureTime: string;
   createdAt: string;
   createdBy: string;
+  creatorId: string;
   status: "waiting" | "active" | "completed";
   riders: Rider[];
   messages: Message[];
@@ -101,6 +102,7 @@ function mapFirebaseRideToLocal(fbRide: FirebaseRide): Ride {
     departureTime: fbRide.time,
     createdAt: fbRide.createdAt.toISOString(),
     createdBy: fbRide.creatorId,
+    creatorId: fbRide.creatorId,
     status: statusMap[fbRide.status] || "waiting",
     riders: (fbRide.riders || []).map((r) => ({
       id: r.id,

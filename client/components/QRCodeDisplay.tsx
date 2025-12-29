@@ -1,5 +1,6 @@
 import React from "react";
 import { View, StyleSheet } from "react-native";
+import QRCode from "react-native-qrcode-svg";
 import { useTheme } from "@/hooks/useTheme";
 import { ThemedText } from "@/components/ThemedText";
 import { Spacing, BorderRadius } from "@/constants/theme";
@@ -7,62 +8,14 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 interface QRCodeDisplayProps {
   value: string;
   size?: number;
+  showCode?: boolean;
 }
 
-export default function QRCodeDisplay({ value, size = 200 }: QRCodeDisplayProps) {
+export default function QRCodeDisplay({ value, size = 200, showCode = true }: QRCodeDisplayProps) {
   const { theme } = useTheme();
   
-  const generatePattern = (data: string) => {
-    const hash = data.split("").reduce((acc, char) => {
-      return ((acc << 5) - acc + char.charCodeAt(0)) | 0;
-    }, 0);
-    return Math.abs(hash);
-  };
-
-  const pattern = generatePattern(value);
-  const gridSize = 9;
-  const cellSize = size / gridSize;
-
-  const renderGrid = () => {
-    const cells = [];
-    for (let row = 0; row < gridSize; row++) {
-      for (let col = 0; col < gridSize; col++) {
-        const isCorner =
-          (row < 3 && col < 3) ||
-          (row < 3 && col > gridSize - 4) ||
-          (row > gridSize - 4 && col < 3);
-        
-        const isCornerOuter =
-          (row === 0 || row === 2 || row === gridSize - 1 || row === gridSize - 3) &&
-          ((col < 3 && (col === 0 || col === 2)) || (col > gridSize - 4 && (col === gridSize - 1 || col === gridSize - 3)));
-        
-        const isCornerInner =
-          row === 1 && col === 1 ||
-          row === 1 && col === gridSize - 2 ||
-          row === gridSize - 2 && col === 1;
-
-        const patternBit = ((pattern >> ((row * gridSize + col) % 31)) & 1) === 1;
-        
-        const isFilled = isCorner || (!isCornerOuter && (isCornerInner || patternBit));
-
-        cells.push(
-          <View
-            key={`${row}-${col}`}
-            style={[
-              styles.cell,
-              {
-                width: cellSize - 2,
-                height: cellSize - 2,
-                backgroundColor: isFilled ? theme.text : "transparent",
-                borderRadius: 2,
-              },
-            ]}
-          />
-        );
-      }
-    }
-    return cells;
-  };
+  const displayValue = value || "RIDESYNC";
+  const displayCode = value.length > 12 ? value.slice(-8).toUpperCase() : value.toUpperCase();
 
   return (
     <View style={styles.container}>
@@ -70,21 +23,27 @@ export default function QRCodeDisplay({ value, size = 200 }: QRCodeDisplayProps)
         style={[
           styles.qrContainer,
           {
-            width: size,
-            height: size,
+            width: size + Spacing.lg * 2,
+            height: size + Spacing.lg * 2,
             backgroundColor: "#FFFFFF",
           },
         ]}
       >
-        <View style={[styles.grid, { width: size, height: size }]}>
-          {renderGrid()}
+        <QRCode
+          value={displayValue}
+          size={size}
+          color="#000000"
+          backgroundColor="#FFFFFF"
+          ecl="M"
+        />
+      </View>
+      {showCode ? (
+        <View style={styles.dataContainer}>
+          <ThemedText type="small" style={{ color: theme.textSecondary }}>
+            Code: {displayCode}
+          </ThemedText>
         </View>
-      </View>
-      <View style={styles.dataContainer}>
-        <ThemedText type="small" style={{ color: theme.textSecondary }}>
-          Code: {value.slice(-8)}
-        </ThemedText>
-      </View>
+      ) : null}
     </View>
   );
 }
@@ -95,17 +54,10 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   qrContainer: {
-    padding: Spacing.md,
-    borderRadius: BorderRadius.sm,
-  },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
     alignItems: "center",
-  },
-  cell: {
-    margin: 1,
+    justifyContent: "center",
   },
   dataContainer: {
     marginTop: Spacing.xs,
