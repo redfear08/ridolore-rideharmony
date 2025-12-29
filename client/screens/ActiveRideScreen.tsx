@@ -8,21 +8,11 @@ import { Feather } from "@expo/vector-icons";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { MapViewNative } from "@/components/MapViewNative";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useRides, useProfile, Rider } from "@/hooks/useStorage";
-
-let MapView: any = null;
-let Marker: any = null;
-let Polyline: any = null;
-
-if (Platform.OS !== "web") {
-  const RNMaps = require("react-native-maps");
-  MapView = RNMaps.default;
-  Marker = RNMaps.Marker;
-  Polyline = RNMaps.Polyline;
-}
 
 type ActiveRideRouteProp = RouteProp<RootStackParamList, "ActiveRide">;
 
@@ -213,7 +203,7 @@ export default function ActiveRideScreen() {
     navigation.navigate("GroupChat", { rideId: route.params.rideId });
   };
 
-  const handleRiderPress = (rider: Rider) => {
+  const handleRiderPress = (rider: Rider | { id: string; name: string }) => {
     navigation.navigate("RiderProfile", { riderId: rider.id });
   };
 
@@ -262,77 +252,30 @@ export default function ActiveRideScreen() {
   };
 
   const mockRiderLocations = ride.riders.map((rider, index) => ({
-    ...rider,
+    id: rider.id,
+    name: rider.name,
     latitude: (userLocation?.latitude || 37.78825) + (Math.sin(index * 1.5) * 0.008),
     longitude: (userLocation?.longitude || -122.4324) + (Math.cos(index * 1.5) * 0.008),
   }));
 
   return (
     <View style={styles.container}>
-      {Platform.OS !== "web" ? (
-        <MapView
-          ref={mapRef}
-          style={StyleSheet.absoluteFill}
-          initialRegion={defaultRegion}
-          showsUserLocation={true}
-          showsMyLocationButton={false}
-          userInterfaceStyle={isDark ? "dark" : "light"}
-          showsCompass={true}
-          showsScale={true}
-        >
-          {destinationCoord ? (
-            <Marker 
-              coordinate={destinationCoord}
-              anchor={{ x: 0.5, y: 1 }}
-            >
-              <View style={styles.destinationMarker}>
-                <View style={[styles.destinationPin, { backgroundColor: theme.accent }]}>
-                  <Feather name="flag" size={16} color="#FFFFFF" />
-                </View>
-                <View style={[styles.destinationPinTail, { borderTopColor: theme.accent }]} />
-              </View>
-            </Marker>
-          ) : null}
-
-          {mockRiderLocations
-            .filter((r) => r.id !== profile?.id)
-            .map((rider) => (
-              <Marker
-                key={rider.id}
-                coordinate={{ latitude: rider.latitude, longitude: rider.longitude }}
-                onPress={() => handleRiderPress(rider)}
-                anchor={{ x: 0.5, y: 0.5 }}
-              >
-                <View style={[styles.riderMarker, { backgroundColor: theme.riderMarker }]}>
-                  <ThemedText type="small" style={{ color: "#FFFFFF", fontWeight: "700" }}>
-                    {rider.name.charAt(0)}
-                  </ThemedText>
-                </View>
-              </Marker>
-            ))}
-
-          {routeCoordinates.length > 1 ? (
-            <Polyline
-              coordinates={routeCoordinates}
-              strokeColor={theme.primary}
-              strokeWidth={4}
-              lineDashPattern={[0]}
-              lineJoin="round"
-              lineCap="round"
-            />
-          ) : null}
-        </MapView>
-      ) : (
-        <View style={[styles.webMapPlaceholder, { backgroundColor: theme.backgroundSecondary }]}>
-          <Feather name="map" size={64} color={theme.textSecondary} />
-          <ThemedText type="h3" style={{ textAlign: "center" }}>
-            Map View
-          </ThemedText>
-          <ThemedText type="body" style={{ textAlign: "center", color: theme.textSecondary }}>
-            Open in Expo Go to see the live map with route tracking
-          </ThemedText>
-        </View>
-      )}
+      <MapViewNative
+        mapRef={mapRef}
+        initialRegion={defaultRegion}
+        isDark={isDark}
+        userLocation={userLocation}
+        destinationCoord={destinationCoord}
+        routeCoordinates={routeCoordinates}
+        riderLocations={mockRiderLocations}
+        currentUserId={profile?.id}
+        theme={{
+          accent: theme.accent,
+          primary: theme.primary,
+          riderMarker: theme.riderMarker,
+        }}
+        onRiderPress={handleRiderPress}
+      />
 
       <View style={[styles.topControls, { paddingTop: insets.top + Spacing.sm }]}>
         <View style={[styles.headerCard, { backgroundColor: theme.backgroundRoot + "F5" }]}>
@@ -466,12 +409,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: Spacing.lg,
   },
-  webMapPlaceholder: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: Spacing["2xl"],
-  },
   topControls: {
     position: "absolute",
     top: 0,
@@ -538,39 +475,6 @@ const styles = StyleSheet.create({
   },
   riderDetails: {
     flex: 1,
-  },
-  riderMarker: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-    ...Shadows.card,
-  },
-  destinationMarker: {
-    alignItems: "center",
-  },
-  destinationPin: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-    ...Shadows.card,
-  },
-  destinationPinTail: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 8,
-    borderRightWidth: 8,
-    borderTopWidth: 10,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    marginTop: -3,
   },
   centerButton: {
     position: "absolute",
