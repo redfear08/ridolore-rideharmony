@@ -49,11 +49,19 @@ export interface Message {
   timestamp: string;
 }
 
+export interface Coordinate {
+  latitude: number;
+  longitude: number;
+}
+
 export interface Ride {
   id: string;
   source: string;
   destination: string;
+  sourceCoords?: Coordinate;
+  destinationCoords?: Coordinate;
   waypoints: string[];
+  waypointCoords?: Coordinate[];
   departureTime: string;
   createdAt: string;
   createdBy: string;
@@ -86,7 +94,10 @@ function mapFirebaseRideToLocal(fbRide: FirebaseRide): Ride {
     id: fbRide.id,
     source: fbRide.source,
     destination: fbRide.destination,
+    sourceCoords: fbRide.sourceCoords,
+    destinationCoords: fbRide.destinationCoords,
     waypoints: fbRide.waypoints,
+    waypointCoords: fbRide.waypointCoords,
     departureTime: fbRide.time,
     createdAt: fbRide.createdAt.toISOString(),
     createdBy: fbRide.creatorId,
@@ -201,7 +212,7 @@ export function useRides() {
   ) => {
     if (!user?.id) throw new Error("Must be logged in to create ride");
     
-    const rideData = {
+    const rideData: any = {
       title: `${ride.source} to ${ride.destination}`,
       source: ride.source,
       destination: ride.destination,
@@ -217,6 +228,16 @@ export function useRides() {
       }],
       status: "upcoming" as const,
     };
+    
+    if (ride.sourceCoords) {
+      rideData.sourceCoords = ride.sourceCoords;
+    }
+    if (ride.destinationCoords) {
+      rideData.destinationCoords = ride.destinationCoords;
+    }
+    if (ride.waypointCoords) {
+      rideData.waypointCoords = ride.waypointCoords;
+    }
     
     const rideId = await firebaseCreateRide(user.id, rideData);
     const newRide = await firebaseGetRide(rideId);

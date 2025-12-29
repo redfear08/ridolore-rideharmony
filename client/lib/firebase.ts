@@ -117,13 +117,21 @@ export interface Rider {
   photoUri?: string;
 }
 
+export interface Coordinate {
+  latitude: number;
+  longitude: number;
+}
+
 export interface Ride {
   id: string;
   creatorId: string;
   title: string;
   source: string;
   destination: string;
+  sourceCoords?: Coordinate;
+  destinationCoords?: Coordinate;
   waypoints: string[];
+  waypointCoords?: Coordinate[];
   date: Date;
   time: string;
   riders: Rider[];
@@ -254,7 +262,7 @@ export async function createRide(userId: string, rideData: Omit<Ride, "id" | "cr
   const riderIds = rideData.riders.map(r => r.id);
   const cleanedRiders = rideData.riders.map(r => cleanObject(r));
   
-  const ride = {
+  const ride: Record<string, any> = {
     title: rideData.title,
     source: rideData.source,
     destination: rideData.destination,
@@ -269,6 +277,16 @@ export async function createRide(userId: string, rideData: Omit<Ride, "id" | "cr
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
   };
+  
+  if (rideData.sourceCoords) {
+    ride.sourceCoords = rideData.sourceCoords;
+  }
+  if (rideData.destinationCoords) {
+    ride.destinationCoords = rideData.destinationCoords;
+  }
+  if (rideData.waypointCoords) {
+    ride.waypointCoords = rideData.waypointCoords;
+  }
   
   const docRef = await addDoc(collection(getDb_(), "rides"), ride);
   return docRef.id;
@@ -291,7 +309,10 @@ export async function getRide(rideId: string): Promise<Ride | null> {
       title: data.title,
       source: data.source,
       destination: data.destination,
+      sourceCoords: data.sourceCoords,
+      destinationCoords: data.destinationCoords,
       waypoints: data.waypoints || [],
+      waypointCoords: data.waypointCoords,
       date: data.date?.toDate() || new Date(),
       time: data.time,
       riders,
@@ -323,7 +344,10 @@ export async function getRideByCode(joinCode: string): Promise<Ride | null> {
       title: data.title,
       source: data.source,
       destination: data.destination,
+      sourceCoords: data.sourceCoords,
+      destinationCoords: data.destinationCoords,
       waypoints: data.waypoints || [],
+      waypointCoords: data.waypointCoords,
       date: data.date?.toDate() || new Date(),
       time: data.time,
       riders,
@@ -355,7 +379,10 @@ export async function getUserRides(userId: string): Promise<Ride[]> {
       title: data.title,
       source: data.source,
       destination: data.destination,
+      sourceCoords: data.sourceCoords,
+      destinationCoords: data.destinationCoords,
       waypoints: data.waypoints || [],
+      waypointCoords: data.waypointCoords,
       date: data.date?.toDate() || new Date(),
       time: data.time,
       riders,
@@ -498,7 +525,10 @@ export function subscribeToRide(rideId: string, callback: (ride: Ride | null) =>
         title: data.title,
         source: data.source,
         destination: data.destination,
+        sourceCoords: data.sourceCoords,
+        destinationCoords: data.destinationCoords,
         waypoints: data.waypoints || [],
+        waypointCoords: data.waypointCoords,
         date: data.date?.toDate() || new Date(),
         time: data.time,
         riders,
