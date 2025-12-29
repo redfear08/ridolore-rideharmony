@@ -224,10 +224,15 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
   }
   
   const docRef = doc(getDb_(), "users", userId);
-  await updateDoc(docRef, {
-    ...updates,
-    updatedAt: Timestamp.now(),
+  const cleanUpdates: Record<string, any> = { updatedAt: Timestamp.now() };
+  
+  Object.entries(updates).forEach(([key, value]) => {
+    if (value !== undefined) {
+      cleanUpdates[key] = value;
+    }
   });
+  
+  await updateDoc(docRef, cleanUpdates);
 }
 
 export async function createRide(userId: string, rideData: Omit<Ride, "id" | "creatorId" | "createdAt" | "updatedAt" | "joinCode" | "riderIds">): Promise<string> {
