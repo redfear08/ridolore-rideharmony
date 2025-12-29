@@ -8,6 +8,8 @@ Firebase integration complete with Authentication and Firestore for cloud data p
 
 **Google Maps Integration:** Real Google Maps routes are now displayed using the Directions API. Location autocomplete uses Google Places API (New). Ride coordinates (source, destination, waypoints) are stored in Firebase and used for route display.
 
+**Real-Time Location Tracking:** Live GPS tracking implemented with high-precision (BestForNavigation accuracy). Each rider's location is published to Firebase subcollection `rides/{rideId}/locations/{riderId}` and streamed to all riders in real-time. Location updates are debounced (5m distance or 5s time threshold) to balance accuracy with battery/bandwidth usage.
+
 ## Tech Stack
 - **Frontend**: React Native with Expo (Expo Go compatible)
 - **Backend**: Express.js + Firebase (Firestore + Auth)
@@ -65,10 +67,10 @@ client/
 
 ## Key Features
 1. **Profile Setup**: Name, age, vehicle info, optional photo
-2. **Create Ride**: Set source, destination, waypoints
+2. **Create Ride**: Set source, destination, waypoints with Google Places autocomplete
 3. **QR Code Sharing**: Generate and share ride invite codes
 4. **Join Ride**: Scan QR or enter code manually
-5. **Live Map**: Real-time rider positions (simulated in MVP)
+5. **Live Map**: Real-time rider positions with high-precision GPS tracking via Firebase
 6. **Group Chat**: In-ride messaging with haptic feedback
 7. **SOS Button**: Emergency alert to group
 
@@ -84,6 +86,6 @@ client/
 - Use Expo Go on mobile device for full features (camera, maps, location)
 
 ## Next Phase Features
-- Real-time WebSocket location updates
 - Push notifications for SOS alerts
 - Ride search and filters
+- Stale location indicator (show when a rider's location is outdated)
