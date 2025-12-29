@@ -12,7 +12,7 @@ import { MapViewNative } from "@/components/MapViewNative";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
-import { useRides, useProfile, Rider } from "@/hooks/useStorage";
+import { useRides, useProfile, Rider, Ride } from "@/hooks/useStorage";
 import { getDirections } from "@/lib/googleMaps";
 
 type ActiveRideRouteProp = RouteProp<RootStackParamList, "ActiveRide">;
@@ -27,11 +27,12 @@ export default function ActiveRideScreen() {
   const { theme, isDark } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<ActiveRideRouteProp>();
-  const { rides, getRide, updateRide } = useRides();
+  const { rides, getRide, fetchRideById, updateRide } = useRides();
   const { profile } = useProfile();
   const mapRef = useRef<any>(null);
   
-  const [ride, setRide] = useState<ReturnType<typeof getRide>>(undefined);
+  const [ride, setRide] = useState<Ride | undefined>(undefined);
+  const [isLoadingRide, setIsLoadingRide] = useState(true);
   const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
   const [showRidersList, setShowRidersList] = useState(false);
   const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
@@ -39,13 +40,31 @@ export default function ActiveRideScreen() {
   const [sourceCoord, setSourceCoord] = useState<Coordinate | null>(null);
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
   const hasSetupFallbackRoute = useRef(false);
+  const hasFetchedFromFirebase = useRef(false);
 
   useEffect(() => {
-    if (rides.length > 0) {
-      const foundRide = getRide(route.params.rideId);
-      setRide(foundRide);
-    }
-  }, [route.params.rideId, rides, getRide]);
+    const loadRide = async () => {
+      const rideId = route.params.rideId;
+      
+      const localRide = getRide(rideId);
+      if (localRide) {
+        setRide(localRide);
+        setIsLoadingRide(false);
+        return;
+      }
+      
+      if (!hasFetchedFromFirebase.current) {
+        hasFetchedFromFirebase.current = true;
+        const fetchedRide = await fetchRideById(rideId);
+        if (fetchedRide) {
+          setRide(fetchedRide);
+        }
+        setIsLoadingRide(false);
+      }
+    };
+    
+    loadRide();
+  }, [route.params.rideId, rides, getRide, fetchRideById]);
 
   useEffect(() => {
     let locationSubscription: Location.LocationSubscription | null = null;
@@ -255,7 +274,7 @@ export default function ActiveRideScreen() {
     }
   };
 
-  if (ride === undefined) {
+  if (isLoadingRide) {
     return (
       <ThemedView style={styles.container}>
         <View style={styles.errorContainer}>
@@ -265,7 +284,7 @@ export default function ActiveRideScreen() {
     );
   }
 
-  if (ride === null || !ride) {
+  if (!ride) {
     return (
       <ThemedView style={styles.container}>
         <View style={styles.errorContainer}>

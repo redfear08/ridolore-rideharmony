@@ -326,6 +326,27 @@ export function useRides() {
     return rides.find((ride) => ride.id === rideId);
   }, [rides]);
 
+  const fetchRideById = useCallback(async (rideId: string): Promise<Ride | null> => {
+    try {
+      const fbRide = await firebaseGetRide(rideId);
+      if (fbRide) {
+        const localRide = mapFirebaseRideToLocal(fbRide);
+        setRides((prev) => {
+          const exists = prev.some((r) => r.id === rideId);
+          if (!exists) {
+            return [...prev, localRide];
+          }
+          return prev.map((r) => (r.id === rideId ? localRide : r));
+        });
+        return localRide;
+      }
+      return null;
+    } catch (error) {
+      console.error("Error fetching ride by ID:", error);
+      return null;
+    }
+  }, []);
+
   const findRideByCode = useCallback(async (joinCode: string): Promise<Ride | null> => {
     try {
       const fbRide = await getRideByCode(joinCode);
@@ -351,6 +372,7 @@ export function useRides() {
     joinRide,
     addMessage,
     getRide,
+    fetchRideById,
     findRideByCode,
     clearRides,
     refreshRides: () => user?.id && loadRides(user.id),
