@@ -127,6 +127,7 @@ export interface Ride {
   date: Date;
   time: string;
   riders: Rider[];
+  riderIds: string[];
   status: "upcoming" | "active" | "completed";
   joinCode: string;
   createdAt: Date;
@@ -229,17 +230,19 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
   });
 }
 
-export async function createRide(userId: string, rideData: Omit<Ride, "id" | "creatorId" | "createdAt" | "updatedAt" | "joinCode">): Promise<string> {
+export async function createRide(userId: string, rideData: Omit<Ride, "id" | "creatorId" | "createdAt" | "updatedAt" | "joinCode" | "riderIds">): Promise<string> {
   if (!isFirebaseConfigured) {
     throw new Error("Firebase is not configured. Please add Firebase credentials.");
   }
   
   const joinCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const riderIds = rideData.riders.map(r => r.id);
   
   const ride = {
     ...rideData,
     creatorId: userId,
     joinCode,
+    riderIds,
     date: Timestamp.fromDate(rideData.date),
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
@@ -259,6 +262,7 @@ export async function getRide(rideId: string): Promise<Ride | null> {
   
   if (docSnap.exists()) {
     const data = docSnap.data();
+    const riders = data.riders || [];
     return {
       id: rideId,
       creatorId: data.creatorId,
@@ -268,7 +272,8 @@ export async function getRide(rideId: string): Promise<Ride | null> {
       waypoints: data.waypoints || [],
       date: data.date?.toDate() || new Date(),
       time: data.time,
-      riders: data.riders || [],
+      riders,
+      riderIds: data.riderIds || riders.map((r: Rider) => r.id),
       status: data.status,
       joinCode: data.joinCode,
       createdAt: data.createdAt?.toDate() || new Date(),
@@ -289,6 +294,7 @@ export async function getRideByCode(joinCode: string): Promise<Ride | null> {
   if (!querySnapshot.empty) {
     const docSnap = querySnapshot.docs[0];
     const data = docSnap.data();
+    const riders = data.riders || [];
     return {
       id: docSnap.id,
       creatorId: data.creatorId,
@@ -298,7 +304,8 @@ export async function getRideByCode(joinCode: string): Promise<Ride | null> {
       waypoints: data.waypoints || [],
       date: data.date?.toDate() || new Date(),
       time: data.time,
-      riders: data.riders || [],
+      riders,
+      riderIds: data.riderIds || riders.map((r: Rider) => r.id),
       status: data.status,
       joinCode: data.joinCode,
       createdAt: data.createdAt?.toDate() || new Date(),
@@ -319,6 +326,7 @@ export async function getUserRides(userId: string): Promise<Ride[]> {
   const rides: Ride[] = [];
   createdSnapshot.forEach((docSnap) => {
     const data = docSnap.data();
+    const riders = data.riders || [];
     rides.push({
       id: docSnap.id,
       creatorId: data.creatorId,
@@ -328,7 +336,8 @@ export async function getUserRides(userId: string): Promise<Ride[]> {
       waypoints: data.waypoints || [],
       date: data.date?.toDate() || new Date(),
       time: data.time,
-      riders: data.riders || [],
+      riders,
+      riderIds: data.riderIds || riders.map((r: Rider) => r.id),
       status: data.status,
       joinCode: data.joinCode,
       createdAt: data.createdAt?.toDate() || new Date(),
@@ -366,7 +375,8 @@ export async function joinRide(rideId: string, rider: Rider): Promise<void> {
   if (existingRider) return;
   
   const updatedRiders = [...ride.riders, rider];
-  await updateRide(rideId, { riders: updatedRiders });
+  const updatedRiderIds = [...ride.riderIds, rider.id];
+  await updateRide(rideId, { riders: updatedRiders, riderIds: updatedRiderIds });
 }
 
 export async function leaveRide(rideId: string, riderId: string): Promise<void> {
@@ -378,7 +388,8 @@ export async function leaveRide(rideId: string, riderId: string): Promise<void> 
   if (!ride) throw new Error("Ride not found");
   
   const updatedRiders = ride.riders.filter((r) => r.id !== riderId);
-  await updateRide(rideId, { riders: updatedRiders });
+  const updatedRiderIds = ride.riderIds.filter((id) => id !== riderId);
+  await updateRide(rideId, { riders: updatedRiders, riderIds: updatedRiderIds });
 }
 
 export async function sendMessage(rideId: string, senderId: string, senderName: string, text: string): Promise<string> {
@@ -458,6 +469,7 @@ export function subscribeToRide(rideId: string, callback: (ride: Ride | null) =>
   return onSnapshot(docRef, (docSnap) => {
     if (docSnap.exists()) {
       const data = docSnap.data();
+      const riders = data.riders || [];
       callback({
         id: rideId,
         creatorId: data.creatorId,
@@ -467,7 +479,8 @@ export function subscribeToRide(rideId: string, callback: (ride: Ride | null) =>
         waypoints: data.waypoints || [],
         date: data.date?.toDate() || new Date(),
         time: data.time,
-        riders: data.riders || [],
+        riders,
+        riderIds: data.riderIds || riders.map((r: Rider) => r.id),
         status: data.status,
         joinCode: data.joinCode,
         createdAt: data.createdAt?.toDate() || new Date(),
