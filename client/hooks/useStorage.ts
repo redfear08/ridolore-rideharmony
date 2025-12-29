@@ -362,6 +362,16 @@ export function generateQRData(rideId: string, joinCode?: string): string {
 }
 
 export function parseQRData(data: string): string | null {
-  const match = data.match(/ridesync:\/\/join\/(.+)/);
-  return match ? match[1] : null;
+  const trimmed = data.trim();
+  
+  const match = trimmed.match(/ridesync:\/\/join\/(.+)/);
+  if (match) {
+    return match[1];
+  }
+  
+  if (trimmed.length >= 6 && /^[A-Za-z0-9]+$/.test(trimmed)) {
+    return trimmed.toUpperCase();
+  }
+  
+  return trimmed.length > 0 ? trimmed : null;
 }

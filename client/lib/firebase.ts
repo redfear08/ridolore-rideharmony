@@ -358,6 +358,12 @@ export async function getRideByCode(joinCode: string): Promise<Ride | null> {
       updatedAt: data.updatedAt?.toDate() || new Date(),
     };
   }
+  
+  const rideById = await getRide(joinCode);
+  if (rideById) {
+    return rideById;
+  }
+  
   return null;
 }
 

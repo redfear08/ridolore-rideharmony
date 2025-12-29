@@ -35,7 +35,7 @@ export default function JoinRideScreen() {
     const joinCodeOrId = parseQRData(data);
     
     if (!joinCodeOrId) {
-      Alert.alert("Invalid QR Code", "This QR code is not a valid RideSync ride.", [
+      Alert.alert("Invalid Code", "Please enter a valid ride code or scan a RideSync QR code.", [
         { text: "OK", onPress: () => setScanned(false) },
       ]);
       return;
@@ -55,11 +55,19 @@ export default function JoinRideScreen() {
       return;
     }
 
-    let ride = rides.find((r) => r.id === joinCodeOrId || r.joinCode === joinCodeOrId);
+    let ride = rides.find((r) => 
+      r.id === joinCodeOrId || 
+      r.joinCode === joinCodeOrId ||
+      r.joinCode?.toUpperCase() === joinCodeOrId.toUpperCase()
+    );
     
     if (!ride) {
       try {
         ride = await findRideByCode(joinCodeOrId) || undefined;
+        
+        if (!ride) {
+          ride = await findRideByCode(joinCodeOrId.toUpperCase()) || undefined;
+        }
       } catch (error) {
         console.error("Error finding ride:", error);
       }
@@ -68,30 +76,52 @@ export default function JoinRideScreen() {
     if (!ride) {
       Alert.alert(
         "Ride Not Found",
-        "This ride doesn't exist or has ended.",
+        `Could not find a ride with code "${joinCodeOrId}". Please check the code and try again.`,
         [{ text: "OK", onPress: () => { setScanned(false); } }]
       );
       return;
     }
 
-    await joinRide(ride.id, {
-      id: profile.id,
-      name: profile.name,
-      vehicleName: profile.vehicleName,
-      vehicleNumber: profile.vehicleNumber,
-      profilePicture: profile.profilePicture,
-    });
-
-    await refreshRides();
-
-    Alert.alert("Joined Ride!", `You've joined the ride to ${ride.destination}`, [
-      {
-        text: "View Ride",
-        onPress: () => {
-          navigation.replace("ActiveRide", { rideId: ride!.id });
+    const alreadyJoined = ride.riders?.some(r => r.id === profile.id) || 
+                          ride.createdBy === profile.id;
+    
+    if (alreadyJoined) {
+      Alert.alert("Already Joined", "You're already part of this ride!", [
+        {
+          text: "View Ride",
+          onPress: () => {
+            navigation.replace("ActiveRide", { rideId: ride!.id });
+          },
         },
-      },
-    ]);
+      ]);
+      return;
+    }
+
+    try {
+      await joinRide(ride.id, {
+        id: profile.id,
+        name: profile.name,
+        vehicleName: profile.vehicleName,
+        vehicleNumber: profile.vehicleNumber,
+        profilePicture: profile.profilePicture,
+      });
+
+      await refreshRides();
+
+      Alert.alert("Joined Ride!", `You've joined the ride to ${ride.destination}`, [
+        {
+          text: "View Ride",
+          onPress: () => {
+            navigation.replace("ActiveRide", { rideId: ride!.id });
+          },
+        },
+      ]);
+    } catch (error) {
+      console.error("Error joining ride:", error);
+      Alert.alert("Error", "Failed to join the ride. Please try again.", [
+        { text: "OK", onPress: () => setScanned(false) },
+      ]);
+    }
   };
 
   const handleManualJoin = () => {
