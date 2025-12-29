@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { StyleSheet, View, TextInput, Pressable, ScrollView, Platform, ActivityIndicator } from "react-native";
+import { StyleSheet, View, TextInput, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import Constants from "expo-constants";
 
@@ -52,63 +52,50 @@ export function LocationAutocomplete({
     };
   }, []);
 
-  const searchWithGooglePlaces = useCallback(async (query: string): Promise<LocationSuggestion[]> => {
+  const searchWithPlacesNew = useCallback(async (query: string): Promise<LocationSuggestion[]> => {
     if (!GOOGLE_MAPS_API_KEY) {
       console.log("Google Maps API key not available");
       return [];
     }
 
     try {
-      const autocompleteUrl = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&key=${GOOGLE_MAPS_API_KEY}&types=geocode|establishment`;
-      
-      const response = await fetch(autocompleteUrl);
-      const data = await response.json();
-
-      if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-        console.log("Places API error:", data.status, data.error_message);
-        return [];
-      }
-
-      if (!data.predictions || data.predictions.length === 0) {
-        return [];
-      }
-
-      const suggestionsWithDetails: LocationSuggestion[] = await Promise.all(
-        data.predictions.slice(0, 5).map(async (prediction: any, index: number) => {
-          try {
-            const detailsUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${prediction.place_id}&fields=geometry,formatted_address,name&key=${GOOGLE_MAPS_API_KEY}`;
-            const detailsResponse = await fetch(detailsUrl);
-            const detailsData = await detailsResponse.json();
-
-            if (detailsData.status === "OK" && detailsData.result) {
-              const location = detailsData.result.geometry?.location;
-              return {
-                id: `google-${index}-${prediction.place_id}`,
-                name: prediction.structured_formatting?.main_text || prediction.description.split(",")[0],
-                address: prediction.structured_formatting?.secondary_text || prediction.description,
-                latitude: location?.lat || 0,
-                longitude: location?.lng || 0,
-                placeId: prediction.place_id,
-              };
-            }
-          } catch (error) {
-            console.log("Error fetching place details:", error);
-          }
-
-          return {
-            id: `google-${index}-${prediction.place_id}`,
-            name: prediction.structured_formatting?.main_text || prediction.description.split(",")[0],
-            address: prediction.structured_formatting?.secondary_text || prediction.description,
-            latitude: 0,
-            longitude: 0,
-            placeId: prediction.place_id,
-          };
-        })
+      const response = await fetch(
+        "https://places.googleapis.com/v1/places:searchText",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
+            "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location",
+          },
+          body: JSON.stringify({
+            textQuery: query,
+            maxResultCount: 5,
+          }),
+        }
       );
 
-      return suggestionsWithDetails;
+      const data = await response.json();
+
+      if (data.error) {
+        console.log("Places API (New) error:", data.error.message);
+        return [];
+      }
+
+      if (!data.places || data.places.length === 0) {
+        return [];
+      }
+
+      return data.places.map((place: any, index: number) => ({
+        id: `place-${index}-${place.id}`,
+        name: place.displayName?.text || "Unknown",
+        address: place.formattedAddress || "",
+        latitude: place.location?.latitude || 0,
+        longitude: place.location?.longitude || 0,
+        placeId: place.id,
+      }));
     } catch (error) {
-      console.log("Google Places search error:", error);
+      console.log("Places API (New) search error:", error);
       return [];
     }
   }, []);
@@ -122,10 +109,10 @@ export function LocationAutocomplete({
     setIsSearching(true);
 
     try {
-      const googleResults = await searchWithGooglePlaces(query);
+      const results = await searchWithPlacesNew(query);
       
-      if (googleResults.length > 0) {
-        setSuggestions(googleResults);
+      if (results.length > 0) {
+        setSuggestions(results);
         setShowSuggestions(true);
       } else {
         setSuggestions([]);
@@ -137,7 +124,7 @@ export function LocationAutocomplete({
     } finally {
       setIsSearching(false);
     }
-  }, [searchWithGooglePlaces]);
+  }, [searchWithPlacesNew]);
 
   const handleTextChange = useCallback((text: string) => {
     onChangeText(text);
