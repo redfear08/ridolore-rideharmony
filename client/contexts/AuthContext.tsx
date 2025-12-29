@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { 
-  auth, 
+  isFirebaseConfigured,
   signUp as firebaseSignUp, 
   signIn as firebaseSignIn, 
   signOut as firebaseSignOut,
@@ -35,6 +35,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    if (!isFirebaseConfigured) {
+      setIsLoading(false);
+      return;
+    }
+    
     const unsubscribe = onAuthChange(async (firebaseUser) => {
       if (firebaseUser) {
         const authUser: User = {
@@ -61,17 +66,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const refreshProfile = async () => {
-    if (user) {
-      try {
-        const userProfile = await getUserProfile(user.id);
-        setProfile(userProfile);
-      } catch (error) {
-        console.error("Failed to refresh profile:", error);
-      }
+    if (!isFirebaseConfigured || !user) {
+      return;
+    }
+    
+    try {
+      const userProfile = await getUserProfile(user.id);
+      setProfile(userProfile);
+    } catch (error) {
+      console.error("Failed to refresh profile:", error);
     }
   };
 
   const signUp = async (email: string, password: string, name: string = ""): Promise<{ success: boolean; error?: string }> => {
+    if (!isFirebaseConfigured) {
+      return { success: false, error: "Firebase is not configured. Please add Firebase credentials." };
+    }
+    
     try {
       const displayName = name || email.split("@")[0];
       await firebaseSignUp(email, password, displayName);
@@ -92,6 +103,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    if (!isFirebaseConfigured) {
+      return { success: false, error: "Firebase is not configured. Please add Firebase credentials." };
+    }
+    
     try {
       await firebaseSignIn(email, password);
       return { success: true };
@@ -111,6 +126,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    if (!isFirebaseConfigured) {
+      return;
+    }
+    
     try {
       await firebaseSignOut();
     } catch (error) {

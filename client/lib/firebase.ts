@@ -27,20 +27,34 @@ import {
 } from "firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
+import Constants from "expo-constants";
+
+const extra = Constants.expoConfig?.extra || {};
 
 const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+  apiKey: extra.firebaseApiKey,
+  authDomain: extra.firebaseAuthDomain,
+  projectId: extra.firebaseProjectId,
+  storageBucket: extra.firebaseStorageBucket,
+  messagingSenderId: extra.firebaseMessagingSenderId,
+  appId: extra.firebaseAppId,
 };
 
-let app: FirebaseApp;
-let auth: Auth;
+const isFirebaseConfigured = !!(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId);
+
+if (!isFirebaseConfigured) {
+  console.warn("Firebase configuration incomplete. Please add Firebase credentials to Secrets.");
+}
+
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let db: ReturnType<typeof getFirestore> | null = null;
 
 function initializeFirebase() {
+  if (!isFirebaseConfigured) {
+    return;
+  }
+  
   if (getApps().length === 0) {
     app = initializeApp(firebaseConfig);
     if (Platform.OS !== "web") {
@@ -54,13 +68,34 @@ function initializeFirebase() {
     app = getApp();
     auth = getAuth(app);
   }
+  db = getFirestore(app);
 }
 
 initializeFirebase();
 
-const db = getFirestore(app);
+function getAuth_(): Auth {
+  if (!auth) {
+    throw new Error("Firebase Auth not initialized. Please configure Firebase credentials.");
+  }
+  return auth;
+}
 
-export { auth, db };
+function getDb_(): ReturnType<typeof getFirestore> {
+  if (!db) {
+    throw new Error("Firestore not initialized. Please configure Firebase credentials.");
+  }
+  return db;
+}
+
+export function getFirebaseAuth(): Auth | null {
+  return auth;
+}
+
+export function getFirebaseDb() {
+  return db;
+}
+
+export { isFirebaseConfigured };
 
 export interface UserProfile {
   id: string;
@@ -108,7 +143,11 @@ export interface ChatMessage {
 }
 
 export async function signUp(email: string, password: string, name: string): Promise<User> {
-  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+  if (!isFirebaseConfigured) {
+    throw new Error("Firebase is not configured. Please add Firebase credentials.");
+  }
+  
+  const userCredential = await createUserWithEmailAndPassword(getAuth_(), email, password);
   const user = userCredential.user;
   
   const profile: Omit<UserProfile, "id"> = {
@@ -118,7 +157,7 @@ export async function signUp(email: string, password: string, name: string): Pro
     updatedAt: new Date(),
   };
   
-  await setDoc(doc(db, "users", user.uid), {
+  await setDoc(doc(getDb_(), "users", user.uid), {
     ...profile,
     createdAt: Timestamp.fromDate(profile.createdAt),
     updatedAt: Timestamp.fromDate(profile.updatedAt),
@@ -128,20 +167,37 @@ export async function signUp(email: string, password: string, name: string): Pro
 }
 
 export async function signIn(email: string, password: string): Promise<User> {
-  const userCredential = await signInWithEmailAndPassword(auth, email, password);
+  if (!isFirebaseConfigured) {
+    throw new Error("Firebase is not configured. Please add Firebase credentials.");
+  }
+  
+  const userCredential = await signInWithEmailAndPassword(getAuth_(), email, password);
   return userCredential.user;
 }
 
 export async function signOut(): Promise<void> {
-  await firebaseSignOut(auth);
+  if (!isFirebaseConfigured) {
+    return;
+  }
+  
+  await firebaseSignOut(getAuth_());
 }
 
 export function onAuthChange(callback: (user: User | null) => void) {
-  return onAuthStateChanged(auth, callback);
+  if (!isFirebaseConfigured) {
+    callback(null);
+    return () => {};
+  }
+  
+  return onAuthStateChanged(getAuth_(), callback);
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
-  const docRef = doc(db, "users", userId);
+  if (!isFirebaseConfigured) {
+    return null;
+  }
+  
+  const docRef = doc(getDb_(), "users", userId);
   const docSnap = await getDoc(docRef);
   
   if (docSnap.exists()) {
@@ -162,7 +218,11 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
 }
 
 export async function updateUserProfile(userId: string, updates: Partial<UserProfile>): Promise<void> {
-  const docRef = doc(db, "users", userId);
+  if (!isFirebaseConfigured) {
+    throw new Error("Firebase is not configured. Please add Firebase credentials.");
+  }
+  
+  const docRef = doc(getDb_(), "users", userId);
   await updateDoc(docRef, {
     ...updates,
     updatedAt: Timestamp.now(),
@@ -170,6 +230,10 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
 }
 
 export async function createRide(userId: string, rideData: Omit<Ride, "id" | "creatorId" | "createdAt" | "updatedAt" | "joinCode">): Promise<string> {
+  if (!isFirebaseConfigured) {
+    throw new Error("Firebase is not configured. Please add Firebase credentials.");
+  }
+  
   const joinCode = Math.random().toString(36).substring(2, 8).toUpperCase();
   
   const ride = {
@@ -181,12 +245,16 @@ export async function createRide(userId: string, rideData: Omit<Ride, "id" | "cr
     updatedAt: Timestamp.now(),
   };
   
-  const docRef = await addDoc(collection(db, "rides"), ride);
+  const docRef = await addDoc(collection(getDb_(), "rides"), ride);
   return docRef.id;
 }
 
 export async function getRide(rideId: string): Promise<Ride | null> {
-  const docRef = doc(db, "rides", rideId);
+  if (!isFirebaseConfigured) {
+    return null;
+  }
+  
+  const docRef = doc(getDb_(), "rides", rideId);
   const docSnap = await getDoc(docRef);
   
   if (docSnap.exists()) {
@@ -211,7 +279,11 @@ export async function getRide(rideId: string): Promise<Ride | null> {
 }
 
 export async function getRideByCode(joinCode: string): Promise<Ride | null> {
-  const q = query(collection(db, "rides"), where("joinCode", "==", joinCode));
+  if (!isFirebaseConfigured) {
+    return null;
+  }
+  
+  const q = query(collection(getDb_(), "rides"), where("joinCode", "==", joinCode));
   const querySnapshot = await getDocs(q);
   
   if (!querySnapshot.empty) {
@@ -237,7 +309,11 @@ export async function getRideByCode(joinCode: string): Promise<Ride | null> {
 }
 
 export async function getUserRides(userId: string): Promise<Ride[]> {
-  const createdQuery = query(collection(db, "rides"), where("creatorId", "==", userId));
+  if (!isFirebaseConfigured) {
+    return [];
+  }
+  
+  const createdQuery = query(collection(getDb_(), "rides"), where("creatorId", "==", userId));
   const createdSnapshot = await getDocs(createdQuery);
   
   const rides: Ride[] = [];
@@ -264,7 +340,11 @@ export async function getUserRides(userId: string): Promise<Ride[]> {
 }
 
 export async function updateRide(rideId: string, updates: Partial<Ride>): Promise<void> {
-  const docRef = doc(db, "rides", rideId);
+  if (!isFirebaseConfigured) {
+    throw new Error("Firebase is not configured. Please add Firebase credentials.");
+  }
+  
+  const docRef = doc(getDb_(), "rides", rideId);
   const updateData: any = { ...updates, updatedAt: Timestamp.now() };
   
   if (updates.date) {
@@ -275,6 +355,10 @@ export async function updateRide(rideId: string, updates: Partial<Ride>): Promis
 }
 
 export async function joinRide(rideId: string, rider: Rider): Promise<void> {
+  if (!isFirebaseConfigured) {
+    throw new Error("Firebase is not configured. Please add Firebase credentials.");
+  }
+  
   const ride = await getRide(rideId);
   if (!ride) throw new Error("Ride not found");
   
@@ -286,6 +370,10 @@ export async function joinRide(rideId: string, rider: Rider): Promise<void> {
 }
 
 export async function leaveRide(rideId: string, riderId: string): Promise<void> {
+  if (!isFirebaseConfigured) {
+    throw new Error("Firebase is not configured. Please add Firebase credentials.");
+  }
+  
   const ride = await getRide(rideId);
   if (!ride) throw new Error("Ride not found");
   
@@ -294,6 +382,10 @@ export async function leaveRide(rideId: string, riderId: string): Promise<void> 
 }
 
 export async function sendMessage(rideId: string, senderId: string, senderName: string, text: string): Promise<string> {
+  if (!isFirebaseConfigured) {
+    throw new Error("Firebase is not configured. Please add Firebase credentials.");
+  }
+  
   const message = {
     rideId,
     senderId,
@@ -302,12 +394,16 @@ export async function sendMessage(rideId: string, senderId: string, senderName: 
     timestamp: Timestamp.now(),
   };
   
-  const docRef = await addDoc(collection(db, "messages"), message);
+  const docRef = await addDoc(collection(getDb_(), "messages"), message);
   return docRef.id;
 }
 
 export async function getRideMessages(rideId: string): Promise<ChatMessage[]> {
-  const q = query(collection(db, "messages"), where("rideId", "==", rideId));
+  if (!isFirebaseConfigured) {
+    return [];
+  }
+  
+  const q = query(collection(getDb_(), "messages"), where("rideId", "==", rideId));
   const querySnapshot = await getDocs(q);
   
   const messages: ChatMessage[] = [];
@@ -327,7 +423,12 @@ export async function getRideMessages(rideId: string): Promise<ChatMessage[]> {
 }
 
 export function subscribeToMessages(rideId: string, callback: (messages: ChatMessage[]) => void) {
-  const q = query(collection(db, "messages"), where("rideId", "==", rideId));
+  if (!isFirebaseConfigured) {
+    callback([]);
+    return () => {};
+  }
+  
+  const q = query(collection(getDb_(), "messages"), where("rideId", "==", rideId));
   
   return onSnapshot(q, (querySnapshot) => {
     const messages: ChatMessage[] = [];
@@ -347,7 +448,12 @@ export function subscribeToMessages(rideId: string, callback: (messages: ChatMes
 }
 
 export function subscribeToRide(rideId: string, callback: (ride: Ride | null) => void) {
-  const docRef = doc(db, "rides", rideId);
+  if (!isFirebaseConfigured) {
+    callback(null);
+    return () => {};
+  }
+  
+  const docRef = doc(getDb_(), "rides", rideId);
   
   return onSnapshot(docRef, (docSnap) => {
     if (docSnap.exists()) {
