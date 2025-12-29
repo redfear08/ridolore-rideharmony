@@ -25,10 +25,12 @@ export default function JoinRideScreen() {
   const [manualCode, setManualCode] = useState("");
   const [showManualInput, setShowManualInput] = useState(false);
 
-  const handleBarCodeScanned = ({ data }: { data: string }) => {
+  const handleBarCodeScanned = (result: { data?: string; raw?: string }) => {
     if (scanned) return;
+    const barcodeData = result.data || result.raw;
+    if (!barcodeData) return;
     setScanned(true);
-    processQRCode(data);
+    processQRCode(barcodeData);
   };
 
   const processQRCode = async (data: string) => {
