@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from "react";
-import { StyleSheet, View, Pressable, Alert, Platform, ScrollView } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { StyleSheet, View, Pressable, Alert, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Location from "expo-location";
+import MapView from "react-native-maps";
+import { Feather } from "@expo/vector-icons";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -15,6 +17,11 @@ import { useRides, useProfile, Rider } from "@/hooks/useStorage";
 
 type ActiveRideRouteProp = RouteProp<RootStackParamList, "ActiveRide">;
 
+interface Coordinate {
+  latitude: number;
+  longitude: number;
+}
+
 export default function ActiveRideScreen() {
   const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
@@ -23,10 +30,13 @@ export default function ActiveRideScreen() {
   const { rides, getRide, updateRide } = useRides();
   const { profile } = useProfile();
   const { Marker, Polyline } = useMapComponents();
+  const mapRef = useRef<MapView>(null);
   
   const [ride, setRide] = useState<ReturnType<typeof getRide>>(undefined);
-  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
   const [showRidersList, setShowRidersList] = useState(false);
+  const [routeCoordinates, setRouteCoordinates] = useState<Coordinate[]>([]);
+  const [destinationCoord, setDestinationCoord] = useState<Coordinate | null>(null);
 
   useEffect(() => {
     let locationSubscription: Location.LocationSubscription | null = null;
@@ -42,22 +52,34 @@ export default function ActiveRideScreen() {
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({});
-      setUserLocation({
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      const currentLocation = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
-      });
+      };
+      setUserLocation(currentLocation);
+      
+      const destLat = currentLocation.latitude + 0.02;
+      const destLng = currentLocation.longitude + 0.015;
+      setDestinationCoord({ latitude: destLat, longitude: destLng });
+      
+      const routePoints = generateRoutePoints(currentLocation, { latitude: destLat, longitude: destLng });
+      setRouteCoordinates(routePoints);
 
       locationSubscription = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
           distanceInterval: 10,
+          timeInterval: 5000,
         },
         (loc) => {
-          setUserLocation({
+          const newLocation = {
             latitude: loc.coords.latitude,
             longitude: loc.coords.longitude,
-          });
+          };
+          setUserLocation(newLocation);
         }
       );
     };
@@ -69,12 +91,54 @@ export default function ActiveRideScreen() {
     };
   }, []);
 
+  const generateRoutePoints = (start: Coordinate, end: Coordinate): Coordinate[] => {
+    const points: Coordinate[] = [];
+    const numPoints = 8;
+    
+    for (let i = 0; i <= numPoints; i++) {
+      const t = i / numPoints;
+      const lat = start.latitude + (end.latitude - start.latitude) * t;
+      const lng = start.longitude + (end.longitude - start.longitude) * t;
+      
+      const curve = i > 0 && i < numPoints ? Math.sin(t * Math.PI) * 0.003 : 0;
+      
+      points.push({
+        latitude: lat + curve,
+        longitude: lng,
+      });
+    }
+    
+    return points;
+  };
+
   useEffect(() => {
     if (rides.length > 0) {
       const foundRide = getRide(route.params.rideId);
       setRide(foundRide);
     }
   }, [route.params.rideId, rides, getRide]);
+
+  useEffect(() => {
+    if (mapRef.current && userLocation && destinationCoord && Platform.OS !== "web") {
+      const allCoords = [userLocation, destinationCoord];
+      
+      if (ride?.riders) {
+        ride.riders.forEach((_, index) => {
+          allCoords.push({
+            latitude: userLocation.latitude + (Math.random() - 0.5) * 0.015,
+            longitude: userLocation.longitude + (Math.random() - 0.5) * 0.015,
+          });
+        });
+      }
+      
+      setTimeout(() => {
+        mapRef.current?.fitToCoordinates(allCoords, {
+          edgePadding: { top: 200, right: 50, bottom: 100, left: 50 },
+          animated: true,
+        });
+      }, 500);
+    }
+  }, [userLocation, destinationCoord, ride?.riders]);
 
   const handleEndRide = async () => {
     const doEndRide = async () => {
@@ -145,6 +209,17 @@ export default function ActiveRideScreen() {
     navigation.navigate("RiderProfile", { riderId: rider.id });
   };
 
+  const handleCenterMap = () => {
+    if (mapRef.current && userLocation) {
+      mapRef.current.animateToRegion({
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+        latitudeDelta: 0.02,
+        longitudeDelta: 0.02,
+      }, 500);
+    }
+  };
+
   if (ride === undefined) {
     return (
       <ThemedView style={styles.container}>
@@ -174,64 +249,93 @@ export default function ActiveRideScreen() {
   const defaultRegion = {
     latitude: userLocation?.latitude || 37.78825,
     longitude: userLocation?.longitude || -122.4324,
-    latitudeDelta: 0.0922,
-    longitudeDelta: 0.0421,
+    latitudeDelta: 0.03,
+    longitudeDelta: 0.03,
   };
 
-  const mockRiderLocations = ride.riders.map((rider) => ({
+  const mockRiderLocations = ride.riders.map((rider, index) => ({
     ...rider,
-    latitude: (userLocation?.latitude || 37.78825) + (Math.random() - 0.5) * 0.01,
-    longitude: (userLocation?.longitude || -122.4324) + (Math.random() - 0.5) * 0.01,
+    latitude: (userLocation?.latitude || 37.78825) + (Math.sin(index * 1.5) * 0.008),
+    longitude: (userLocation?.longitude || -122.4324) + (Math.cos(index * 1.5) * 0.008),
   }));
 
   return (
     <View style={styles.container}>
-      <MapViewWrapper
-        initialRegion={defaultRegion}
-        userInterfaceStyle={isDark ? "dark" : "light"}
-      >
-        {Platform.OS !== "web" && userLocation ? (
-          <Marker coordinate={userLocation} anchor={{ x: 0.5, y: 0.5 }}>
-            <View style={styles.userMarker}>
-              <View style={[styles.userMarkerDot, { backgroundColor: theme.primary }]} />
-            </View>
-          </Marker>
-        ) : null}
-
-        {Platform.OS !== "web" ? mockRiderLocations
-          .filter((r) => r.id !== profile?.id)
-          .map((rider) => (
-            <Marker
-              key={rider.id}
-              coordinate={{ latitude: rider.latitude, longitude: rider.longitude }}
-              onPress={() => handleRiderPress(rider)}
+      {Platform.OS !== "web" ? (
+        <MapView
+          ref={mapRef}
+          style={StyleSheet.absoluteFill}
+          initialRegion={defaultRegion}
+          showsUserLocation={true}
+          showsMyLocationButton={false}
+          userInterfaceStyle={isDark ? "dark" : "light"}
+          showsCompass={true}
+          showsScale={true}
+        >
+          {destinationCoord ? (
+            <Marker 
+              coordinate={destinationCoord}
+              anchor={{ x: 0.5, y: 1 }}
             >
-              <View style={[styles.riderMarker, { backgroundColor: theme.riderMarker }]}>
-                <ThemedText type="small" style={{ color: "#FFFFFF", fontWeight: "700" }}>
-                  {rider.name.charAt(0)}
-                </ThemedText>
+              <View style={styles.destinationMarker}>
+                <View style={[styles.destinationPin, { backgroundColor: theme.accent }]}>
+                  <Feather name="flag" size={16} color="#FFFFFF" />
+                </View>
+                <View style={[styles.destinationPinTail, { borderTopColor: theme.accent }]} />
               </View>
             </Marker>
-          )) : null}
+          ) : null}
 
-        {Platform.OS !== "web" && userLocation ? (
-          <Polyline
-            coordinates={[
-              userLocation,
-              { latitude: userLocation.latitude + 0.01, longitude: userLocation.longitude + 0.005 },
-              { latitude: userLocation.latitude + 0.02, longitude: userLocation.longitude + 0.01 },
-            ]}
-            strokeColor={theme.routeLine}
-            strokeWidth={5}
-          />
-        ) : null}
-      </MapViewWrapper>
+          {mockRiderLocations
+            .filter((r) => r.id !== profile?.id)
+            .map((rider) => (
+              <Marker
+                key={rider.id}
+                coordinate={{ latitude: rider.latitude, longitude: rider.longitude }}
+                onPress={() => handleRiderPress(rider)}
+                anchor={{ x: 0.5, y: 0.5 }}
+              >
+                <View style={[styles.riderMarker, { backgroundColor: theme.riderMarker }]}>
+                  <ThemedText type="small" style={{ color: "#FFFFFF", fontWeight: "700" }}>
+                    {rider.name.charAt(0)}
+                  </ThemedText>
+                </View>
+              </Marker>
+            ))}
+
+          {routeCoordinates.length > 1 ? (
+            <Polyline
+              coordinates={routeCoordinates}
+              strokeColor={theme.primary}
+              strokeWidth={4}
+              lineDashPattern={[0]}
+              lineJoin="round"
+              lineCap="round"
+            />
+          ) : null}
+        </MapView>
+      ) : (
+        <View style={[styles.webMapPlaceholder, { backgroundColor: theme.backgroundSecondary }]}>
+          <Feather name="map" size={64} color={theme.textSecondary} />
+          <ThemedText type="h3" style={{ textAlign: "center" }}>
+            Map View
+          </ThemedText>
+          <ThemedText type="body" style={{ textAlign: "center", color: theme.textSecondary }}>
+            Open in Expo Go to see the live map with route tracking
+          </ThemedText>
+        </View>
+      )}
 
       <View style={[styles.topControls, { paddingTop: insets.top + Spacing.sm }]}>
-        <View style={[styles.headerCard, { backgroundColor: theme.backgroundRoot + "F0" }]}>
+        <View style={[styles.headerCard, { backgroundColor: theme.backgroundRoot + "F5" }]}>
           <View style={styles.headerRow}>
             <View style={[styles.statusDot, { backgroundColor: theme.accent }]} />
-            <ThemedText type="h4" style={{ flex: 1 }}>Ride Active</ThemedText>
+            <View style={styles.headerInfo}>
+              <ThemedText type="h4">Ride Active</ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                {ride.source} → {ride.destination}
+              </ThemedText>
+            </View>
             <Pressable
               style={({ pressed }) => [
                 styles.endButton,
@@ -253,6 +357,7 @@ export default function ActiveRideScreen() {
               ]}
               onPress={handleOpenChat}
             >
+              <Feather name="message-circle" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
               <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "600" }}>
                 Chat
               </ThemedText>
@@ -265,6 +370,7 @@ export default function ActiveRideScreen() {
               ]}
               onPress={handleSOS}
             >
+              <Feather name="alert-triangle" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
               <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "700" }}>
                 SOS
               </ThemedText>
@@ -277,13 +383,14 @@ export default function ActiveRideScreen() {
               ]}
               onPress={() => setShowRidersList(!showRidersList)}
             >
+              <Feather name="users" size={18} color={theme.text} style={{ marginRight: 6 }} />
               <ThemedText type="body" style={{ fontWeight: "600" }}>
-                {ride.riders.length} Riders
+                {ride.riders.length}
               </ThemedText>
             </Pressable>
           </View>
 
-          {showRidersList && (
+          {showRidersList ? (
             <View style={styles.ridersList}>
               {ride.riders.map((rider) => (
                 <Pressable
@@ -311,9 +418,25 @@ export default function ActiveRideScreen() {
                 </Pressable>
               ))}
             </View>
-          )}
+          ) : null}
         </View>
       </View>
+
+      {Platform.OS !== "web" ? (
+        <Pressable
+          style={({ pressed }) => [
+            styles.centerButton,
+            { 
+              backgroundColor: theme.backgroundRoot,
+              bottom: insets.bottom + Spacing.xl,
+              opacity: pressed ? 0.8 : 1,
+            },
+          ]}
+          onPress={handleCenterMap}
+        >
+          <Feather name="navigation" size={24} color={theme.primary} />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -326,7 +449,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: Spacing.lg,
   },
   iconCircle: {
     width: 64,
@@ -334,6 +456,13 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: Spacing.lg,
+  },
+  webMapPlaceholder: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing["2xl"],
   },
   topControls: {
     position: "absolute",
@@ -350,7 +479,10 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
+  },
+  headerInfo: {
+    flex: 1,
+    marginLeft: Spacing.sm,
   },
   statusDot: {
     width: 12,
@@ -361,29 +493,32 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     borderRadius: BorderRadius.sm,
+    minHeight: 44,
+    justifyContent: "center",
   },
   actionButtons: {
     flexDirection: "row",
-    gap: Spacing.sm,
     marginTop: Spacing.md,
   },
   actionButton: {
     flex: 1,
+    flexDirection: "row",
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.sm,
     alignItems: "center",
     justifyContent: "center",
+    minHeight: 44,
+    marginRight: Spacing.sm,
   },
   ridersList: {
     marginTop: Spacing.md,
-    gap: Spacing.sm,
   },
   riderItem: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.md,
     padding: Spacing.sm,
     borderRadius: BorderRadius.sm,
+    marginTop: Spacing.sm,
   },
   riderAvatar: {
     width: 36,
@@ -391,31 +526,52 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
+    marginRight: Spacing.md,
   },
   riderDetails: {
     flex: 1,
-    gap: 2,
-  },
-  userMarker: {
-    width: 20,
-    height: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  userMarkerDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
   },
   riderMarker: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: "#FFFFFF",
+    ...Shadows.card,
+  },
+  destinationMarker: {
+    alignItems: "center",
+  },
+  destinationPin: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
+    ...Shadows.card,
+  },
+  destinationPinTail: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderTopWidth: 10,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    marginTop: -3,
+  },
+  centerButton: {
+    position: "absolute",
+    right: Spacing.lg,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Shadows.card,
   },
 });
