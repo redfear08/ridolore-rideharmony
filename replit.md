@@ -4,16 +4,28 @@
 RideSync is a mobile application for motorcycle/vehicle riders to create and join group rides with real-time location tracking, QR code sharing, and group communication features.
 
 ## Current State
-MVP implementation with local storage (AsyncStorage). Multi-device sync and real-time features will require backend integration in future phases.
+Firebase integration complete with Authentication and Firestore for cloud data persistence. Users can sign in across multiple devices with the same credentials. All data is stored in Firebase Firestore.
 
 ## Tech Stack
 - **Frontend**: React Native with Expo (Expo Go compatible)
-- **Backend**: Express.js (minimal - mostly for future API expansion)
-- **Storage**: AsyncStorage for local persistence
+- **Backend**: Express.js + Firebase (Firestore + Auth)
+- **Authentication**: Firebase Authentication (email/password)
+- **Database**: Firebase Firestore (cloud NoSQL)
 - **Navigation**: React Navigation 7+
 - **State Management**: React hooks + TanStack Query
 - **Maps**: react-native-maps
 - **Styling**: StyleSheet with custom theme system
+
+## Firebase Configuration
+Firebase is configured via `app.config.js` using the following secrets:
+- FIREBASE_API_KEY
+- FIREBASE_AUTH_DOMAIN
+- FIREBASE_PROJECT_ID
+- FIREBASE_STORAGE_BUCKET
+- FIREBASE_MESSAGING_SENDER_ID
+- FIREBASE_APP_ID
+
+The configuration is exposed to the app via `Constants.expoConfig.extra` for Expo compatibility.
 
 ## Project Structure
 ```
@@ -69,7 +81,6 @@ client/
 - Use Expo Go on mobile device for full features (camera, maps, location)
 
 ## Next Phase Features
-- Backend database for multi-device sync
 - Real-time WebSocket location updates
 - Push notifications for SOS alerts
 - Enhanced route visualization
