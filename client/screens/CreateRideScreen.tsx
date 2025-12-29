@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { StyleSheet, View, TextInput, Pressable, Alert } from "react-native";
+import { StyleSheet, View, TextInput, Pressable, Alert, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -11,11 +11,19 @@ import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
+import { LocationAutocomplete } from "@/components/LocationAutocomplete";
 import { useTheme } from "@/hooks/useTheme";
 import { useResponsive } from "@/hooks/useResponsive";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useProfile, useRides } from "@/hooks/useStorage";
+
+interface SelectedLocation {
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+}
 
 export default function CreateRideScreen() {
   const insets = useSafeAreaInsets();
@@ -27,30 +35,28 @@ export default function CreateRideScreen() {
 
   const [source, setSource] = useState("");
   const [destination, setDestination] = useState("");
+  const [sourceLocation, setSourceLocation] = useState<SelectedLocation | null>(null);
+  const [destinationLocation, setDestinationLocation] = useState<SelectedLocation | null>(null);
   const [waypoints, setWaypoints] = useState<string[]>([]);
   const [newWaypoint, setNewWaypoint] = useState("");
   const [isLocating, setIsLocating] = useState(false);
-
-  const spacing = {
-    xs: moderateScale(4),
-    sm: moderateScale(8),
-    md: moderateScale(12),
-    lg: moderateScale(16),
-    xl: moderateScale(20),
-    "2xl": moderateScale(24),
-  };
-  const inputHeight = isSmallScreen ? moderateScale(44) : moderateScale(48);
 
   const handleUseCurrentLocation = async () => {
     setIsLocating(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("Permission Denied", "Location permission is required to use this feature.");
+        if (Platform.OS === "web") {
+          window.alert("Location permission is required to use this feature.");
+        } else {
+          Alert.alert("Permission Denied", "Location permission is required to use this feature.");
+        }
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({});
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
       const [address] = await Location.reverseGeocodeAsync({
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
@@ -61,11 +67,27 @@ export default function CreateRideScreen() {
           .filter(Boolean)
           .join(", ");
         setSource(locationString || "Current Location");
+        setSourceLocation({
+          name: address.street || "Current Location",
+          address: [address.city, address.region].filter(Boolean).join(", "),
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        });
       } else {
         setSource("Current Location");
+        setSourceLocation({
+          name: "Current Location",
+          address: "",
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        });
       }
     } catch (error) {
-      Alert.alert("Error", "Could not get your current location. Please enter it manually.");
+      if (Platform.OS === "web") {
+        window.alert("Could not get your current location. Please enter it manually.");
+      } else {
+        Alert.alert("Error", "Could not get your current location. Please enter it manually.");
+      }
     } finally {
       setIsLocating(false);
     }
@@ -84,15 +106,25 @@ export default function CreateRideScreen() {
 
   const handleCreateRide = async () => {
     if (!profile) {
-      Alert.alert("Profile Required", "Please complete your profile before creating a ride.", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Setup Profile", onPress: () => navigation.navigate("ProfileSetup") },
-      ]);
+      if (Platform.OS === "web") {
+        if (window.confirm("Please complete your profile before creating a ride. Setup now?")) {
+          navigation.navigate("ProfileSetup");
+        }
+      } else {
+        Alert.alert("Profile Required", "Please complete your profile before creating a ride.", [
+          { text: "Cancel", style: "cancel" },
+          { text: "Setup Profile", onPress: () => navigation.navigate("ProfileSetup") },
+        ]);
+      }
       return;
     }
 
     if (!source.trim() || !destination.trim()) {
-      Alert.alert("Missing Information", "Please enter both source and destination.");
+      if (Platform.OS === "web") {
+        window.alert("Please enter both source and destination.");
+      } else {
+        Alert.alert("Missing Information", "Please enter both source and destination.");
+      }
       return;
     }
 
@@ -123,66 +155,37 @@ export default function CreateRideScreen() {
           },
         ]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.form}>
-          <View style={styles.inputGroup}>
+        <View style={[styles.form, { zIndex: 100 }]}>
+          <View style={[styles.inputGroup, { zIndex: 102 }]}>
             <ThemedText type="small" style={styles.label}>
               Starting Point *
             </ThemedText>
-            <View style={styles.inputRow}>
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.inputFlex,
-                  {
-                    backgroundColor: theme.backgroundDefault,
-                    color: theme.text,
-                    borderColor: theme.border,
-                  },
-                ]}
-                placeholder="Enter starting location"
-                placeholderTextColor={theme.textSecondary}
-                value={source}
-                onChangeText={setSource}
-              />
-              <Pressable
-                style={({ pressed }) => [
-                  styles.locationButton,
-                  { backgroundColor: theme.primary, opacity: pressed ? 0.7 : 1 },
-                ]}
-                onPress={handleUseCurrentLocation}
-                disabled={isLocating}
-              >
-                <Feather
-                  name={isLocating ? "loader" : "navigation"}
-                  size={20}
-                  color="#FFFFFF"
-                />
-              </Pressable>
-            </View>
-          </View>
-
-          <View style={styles.inputGroup}>
-            <ThemedText type="small" style={styles.label}>
-              Destination *
-            </ThemedText>
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  backgroundColor: theme.backgroundDefault,
-                  color: theme.text,
-                  borderColor: theme.border,
-                },
-              ]}
-              placeholder="Enter destination"
-              placeholderTextColor={theme.textSecondary}
-              value={destination}
-              onChangeText={setDestination}
+            <LocationAutocomplete
+              value={source}
+              onChangeText={setSource}
+              onSelectLocation={(loc) => setSourceLocation(loc)}
+              placeholder="Search starting location"
+              showCurrentLocation={true}
+              onCurrentLocationPress={handleUseCurrentLocation}
+              isLocating={isLocating}
             />
           </View>
 
-          <View style={styles.inputGroup}>
+          <View style={[styles.inputGroup, { zIndex: 101 }]}>
+            <ThemedText type="small" style={styles.label}>
+              Destination *
+            </ThemedText>
+            <LocationAutocomplete
+              value={destination}
+              onChangeText={setDestination}
+              onSelectLocation={(loc) => setDestinationLocation(loc)}
+              placeholder="Search destination"
+            />
+          </View>
+
+          <View style={[styles.inputGroup, { zIndex: 100 }]}>
             <ThemedText type="small" style={styles.label}>
               Waypoints (Optional)
             </ThemedText>
@@ -218,7 +221,7 @@ export default function CreateRideScreen() {
               </Pressable>
             </View>
 
-            {waypoints.length > 0 && (
+            {waypoints.length > 0 ? (
               <View style={styles.waypointsList}>
                 {waypoints.map((wp, index) => (
                   <View
@@ -240,7 +243,7 @@ export default function CreateRideScreen() {
                   </View>
                 ))}
               </View>
-            )}
+            ) : null}
           </View>
         </View>
 
@@ -292,15 +295,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
   },
   form: {
-    gap: Spacing.lg,
     marginBottom: Spacing["2xl"],
   },
   inputGroup: {
-    gap: Spacing.xs,
+    marginBottom: Spacing.lg,
   },
   label: {
     fontWeight: "600",
     marginLeft: Spacing.xs,
+    marginBottom: Spacing.xs,
   },
   input: {
     height: Spacing.inputHeight,
@@ -311,17 +314,10 @@ const styles = StyleSheet.create({
   },
   inputRow: {
     flexDirection: "row",
-    gap: Spacing.sm,
   },
   inputFlex: {
     flex: 1,
-  },
-  locationButton: {
-    width: Spacing.inputHeight,
-    height: Spacing.inputHeight,
-    borderRadius: BorderRadius.sm,
-    alignItems: "center",
-    justifyContent: "center",
+    marginRight: Spacing.sm,
   },
   addButton: {
     width: Spacing.inputHeight,
@@ -331,7 +327,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   waypointsList: {
-    gap: Spacing.sm,
     marginTop: Spacing.sm,
   },
   waypointItem: {
@@ -341,17 +336,19 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     borderRadius: BorderRadius.xs,
+    marginTop: Spacing.sm,
   },
   waypointContent: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
     flex: 1,
+    marginRight: Spacing.sm,
   },
   waypointDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
+    marginRight: Spacing.sm,
   },
   waypointText: {
     flex: 1,
@@ -363,18 +360,16 @@ const styles = StyleSheet.create({
   previewTitle: {
     marginBottom: Spacing.lg,
   },
-  routePreview: {
-    gap: Spacing.xs,
-  },
+  routePreview: {},
   routePoint: {
     flexDirection: "row",
     alignItems: "center",
-    gap: Spacing.sm,
   },
   routeDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
+    marginRight: Spacing.sm,
   },
   routeLine: {
     width: 2,
