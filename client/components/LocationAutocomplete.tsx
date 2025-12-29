@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { StyleSheet, View, TextInput, Pressable, FlatList, Platform, ActivityIndicator } from "react-native";
+import { StyleSheet, View, TextInput, Pressable, ScrollView, Platform, ActivityIndicator } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Location from "expo-location";
 
@@ -261,14 +261,14 @@ export function LocationAutocomplete({
             }
           ]}
         >
-          <FlatList
-            data={suggestions}
-            keyExtractor={(item) => item.id}
+          <ScrollView
             keyboardShouldPersistTaps="handled"
             nestedScrollEnabled
             style={styles.suggestionsList}
-            renderItem={({ item, index }) => (
+          >
+            {suggestions.map((item, index) => (
               <Pressable
+                key={item.id}
                 style={({ pressed }) => [
                   styles.suggestionItem,
                   { 
@@ -291,8 +291,8 @@ export function LocationAutocomplete({
                   </ThemedText>
                 </View>
               </Pressable>
-            )}
-          />
+            ))}
+          </ScrollView>
         </View>
       ) : null}
     </View>

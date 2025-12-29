@@ -4,16 +4,25 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Location from "expo-location";
-import MapView from "react-native-maps";
 import { Feather } from "@expo/vector-icons";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
-import { MapViewWrapper, useMapComponents } from "@/components/MapViewWrapper";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useRides, useProfile, Rider } from "@/hooks/useStorage";
+
+let MapView: any = null;
+let Marker: any = null;
+let Polyline: any = null;
+
+if (Platform.OS !== "web") {
+  const RNMaps = require("react-native-maps");
+  MapView = RNMaps.default;
+  Marker = RNMaps.Marker;
+  Polyline = RNMaps.Polyline;
+}
 
 type ActiveRideRouteProp = RouteProp<RootStackParamList, "ActiveRide">;
 
@@ -29,8 +38,7 @@ export default function ActiveRideScreen() {
   const route = useRoute<ActiveRideRouteProp>();
   const { rides, getRide, updateRide } = useRides();
   const { profile } = useProfile();
-  const { Marker, Polyline } = useMapComponents();
-  const mapRef = useRef<MapView>(null);
+  const mapRef = useRef<any>(null);
   
   const [ride, setRide] = useState<ReturnType<typeof getRide>>(undefined);
   const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
