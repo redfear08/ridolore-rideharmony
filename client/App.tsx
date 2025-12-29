@@ -1,13 +1,12 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import { StyleSheet, View, ActivityIndicator } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
-import * as SplashScreen from "expo-splash-screen";
 import * as Font from "expo-font";
-import { Feather, Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/query-client";
@@ -33,44 +32,36 @@ function AppNavigator() {
   return isAuthenticated ? <RootStackNavigator /> : <AuthStackNavigator />;
 }
 
-SplashScreen.preventAutoHideAsync();
-
 export default function App() {
-  const [appIsReady, setAppIsReady] = useState(false);
+  const [fontsLoaded, setFontsLoaded] = useState(false);
 
   useEffect(() => {
-    async function prepare() {
+    async function loadFonts() {
       try {
-        await Font.loadAsync({
-          ...Feather.font,
-          ...Ionicons.font,
-          ...MaterialIcons.font,
-        });
+        await Font.loadAsync(Feather.font);
       } catch (e) {
-        console.warn(e);
+        console.warn("Font loading error:", e);
       } finally {
-        setAppIsReady(true);
+        setFontsLoaded(true);
       }
     }
 
-    prepare();
+    loadFonts();
   }, []);
 
-  const onLayoutRootView = useCallback(async () => {
-    if (appIsReady) {
-      await SplashScreen.hideAsync();
-    }
-  }, [appIsReady]);
-
-  if (!appIsReady) {
-    return null;
+  if (!fontsLoaded) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
   }
 
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <SafeAreaProvider>
-          <GestureHandlerRootView style={styles.root} onLayout={onLayoutRootView}>
+          <GestureHandlerRootView style={styles.root}>
             <KeyboardProvider>
               <AuthProvider>
                 <NavigationContainer>
