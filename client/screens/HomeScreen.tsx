@@ -150,7 +150,7 @@ export default function HomeScreen() {
             <Pressable
               style={({ pressed }) => [
                 styles.quickAction,
-                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.7 : 1, padding: spacing.lg, flex: 1 },
+                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.7 : 1, padding: spacing.lg, marginRight: spacing.md / 2 },
               ]}
               onPress={() => stackNavigation.navigate("JoinRide")}
             >
@@ -162,6 +162,23 @@ export default function HomeScreen() {
               </ThemedText>
               <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: spacing.xs }}>
                 Join a ride group
+              </ThemedText>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.quickAction,
+                { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.7 : 1, padding: spacing.lg, marginLeft: spacing.md / 2 },
+              ]}
+              onPress={() => stackNavigation.navigate("CreateRide")}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: theme.accent }]}>
+                <Feather name="plus" size={22} color="#FFFFFF" />
+              </View>
+              <ThemedText type="body" style={[styles.quickActionText, { marginTop: spacing.sm }]}>
+                Create Ride
+              </ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: spacing.xs }}>
+                Start a new group
               </ThemedText>
             </Pressable>
           </View>
