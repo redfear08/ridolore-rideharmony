@@ -103,15 +103,15 @@ export default function SocialFeedScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const navigateToCreateRide = useCallback(() => {
-    navigation.navigate("CreateRide");
+  const navigateToHome = useCallback(() => {
+    navigation.navigate("Main", { screen: "Home" });
   }, [navigation]);
 
   const swipeGesture = Gesture.Pan()
     .activeOffsetX([50, 50])
     .onEnd((event) => {
       if (event.translationX > 100 && Math.abs(event.velocityX) > 300) {
-        runOnJS(navigateToCreateRide)();
+        runOnJS(navigateToHome)();
       }
     });
 
