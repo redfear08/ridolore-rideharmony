@@ -2,15 +2,7 @@ import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Feather } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
-import { Platform, StyleSheet, View, Pressable } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from "react-native-reanimated";
+import { Platform, StyleSheet, View } from "react-native";
 
 import HomeScreen from "@/screens/HomeScreen";
 import MyRidesScreen from "@/screens/MyRidesScreen";
@@ -19,8 +11,6 @@ import ProfileScreen from "@/screens/ProfileScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
 import { useTheme } from "@/hooks/useTheme";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
-import { Spacing, Shadows, BorderRadius } from "@/constants/theme";
-import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 export type MainTabParamList = {
   Home: undefined;
@@ -31,45 +21,6 @@ export type MainTabParamList = {
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-function FloatingActionButton() {
-  const { theme } = useTheme();
-  const insets = useSafeAreaInsets();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const scale = useSharedValue(1);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  const handlePressIn = () => {
-    scale.value = withSpring(0.95, { damping: 15, stiffness: 150 });
-  };
-
-  const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15, stiffness: 150 });
-  };
-
-  return (
-    <AnimatedPressable
-      onPress={() => navigation.navigate("CreateRide")}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      style={[
-        styles.fab,
-        {
-          backgroundColor: theme.primary,
-          bottom: 60 + insets.bottom + Spacing.xl,
-        },
-        Shadows.fab,
-        animatedStyle,
-      ]}
-    >
-      <Feather name="plus" size={24} color="#FFFFFF" />
-    </AnimatedPressable>
-  );
-}
 
 export default function MainTabNavigator() {
   const { theme, isDark } = useTheme();
@@ -156,7 +107,6 @@ export default function MainTabNavigator() {
           }}
         />
       </Tab.Navigator>
-      <FloatingActionButton />
     </View>
   );
 }
@@ -164,14 +114,5 @@ export default function MainTabNavigator() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  fab: {
-    position: "absolute",
-    right: Spacing.xl,
-    width: 56,
-    height: 56,
-    borderRadius: BorderRadius.full,
-    alignItems: "center",
-    justifyContent: "center",
   },
 });
