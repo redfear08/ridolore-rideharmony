@@ -17,13 +17,19 @@ import {
   setDoc, 
   getDoc, 
   updateDoc,
+  deleteDoc,
   collection,
   query,
   where,
   getDocs,
   addDoc,
   onSnapshot,
-  Timestamp
+  Timestamp,
+  orderBy,
+  limit,
+  startAfter,
+  QueryDocumentSnapshot,
+  increment
 } from "firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
@@ -577,6 +583,45 @@ export interface RiderLocation {
   updatedAt: Date;
 }
 
+export interface PostAuthor {
+  id: string;
+  name: string;
+  photoUri?: string;
+  vehicleName?: string;
+}
+
+export interface PostMedia {
+  type: "image" | "video";
+  uri: string;
+  aspectRatio?: number;
+  thumbnailUri?: string;
+}
+
+export interface Post {
+  id: string;
+  authorId: string;
+  author: PostAuthor;
+  caption: string;
+  media: PostMedia[];
+  postType: "general" | "ride_announcement";
+  rideId?: string;
+  rideTitle?: string;
+  likeCount: number;
+  commentCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface PostComment {
+  id: string;
+  postId: string;
+  authorId: string;
+  authorName: string;
+  authorPhotoUri?: string;
+  text: string;
+  createdAt: Date;
+}
+
 export async function updateRiderLocation(
   rideId: string,
   riderId: string,
@@ -643,5 +688,235 @@ export function subscribeToRiderLocations(
       });
     });
     callback(locations);
+  });
+}
+
+function parsePost(docSnap: QueryDocumentSnapshot): Post {
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    authorId: data.authorId,
+    author: data.author || { id: data.authorId, name: "Unknown" },
+    caption: data.caption || "",
+    media: data.media || [],
+    postType: data.postType || "general",
+    rideId: data.rideId,
+    rideTitle: data.rideTitle,
+    likeCount: data.likeCount || 0,
+    commentCount: data.commentCount || 0,
+    createdAt: data.createdAt?.toDate() || new Date(),
+    updatedAt: data.updatedAt?.toDate() || new Date(),
+  };
+}
+
+export async function createPost(
+  author: PostAuthor,
+  caption: string,
+  media: PostMedia[],
+  postType: "general" | "ride_announcement" = "general",
+  rideId?: string,
+  rideTitle?: string
+): Promise<string> {
+  if (!isFirebaseConfigured) {
+    throw new Error("Firebase is not configured.");
+  }
+
+  const postData: Record<string, any> = {
+    authorId: author.id,
+    author: cleanObject(author),
+    caption,
+    media,
+    postType,
+    likeCount: 0,
+    commentCount: 0,
+    createdAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+  };
+
+  if (rideId) postData.rideId = rideId;
+  if (rideTitle) postData.rideTitle = rideTitle;
+
+  const docRef = await addDoc(collection(getDb_(), "posts"), postData);
+  return docRef.id;
+}
+
+export async function getPosts(
+  pageSize: number = 10,
+  lastDoc?: QueryDocumentSnapshot
+): Promise<{ posts: Post[]; lastDoc: QueryDocumentSnapshot | null }> {
+  if (!isFirebaseConfigured) {
+    return { posts: [], lastDoc: null };
+  }
+
+  let q = query(
+    collection(getDb_(), "posts"),
+    orderBy("createdAt", "desc"),
+    limit(pageSize)
+  );
+
+  if (lastDoc) {
+    q = query(
+      collection(getDb_(), "posts"),
+      orderBy("createdAt", "desc"),
+      startAfter(lastDoc),
+      limit(pageSize)
+    );
+  }
+
+  const snapshot = await getDocs(q);
+  const posts: Post[] = [];
+  let newLastDoc: QueryDocumentSnapshot | null = null;
+
+  snapshot.forEach((docSnap) => {
+    posts.push(parsePost(docSnap));
+    newLastDoc = docSnap;
+  });
+
+  return { posts, lastDoc: newLastDoc };
+}
+
+export async function getPost(postId: string): Promise<Post | null> {
+  if (!isFirebaseConfigured) {
+    return null;
+  }
+
+  const docRef = doc(getDb_(), "posts", postId);
+  const docSnap = await getDoc(docRef);
+
+  if (docSnap.exists()) {
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      authorId: data.authorId,
+      author: data.author || { id: data.authorId, name: "Unknown" },
+      caption: data.caption || "",
+      media: data.media || [],
+      postType: data.postType || "general",
+      rideId: data.rideId,
+      rideTitle: data.rideTitle,
+      likeCount: data.likeCount || 0,
+      commentCount: data.commentCount || 0,
+      createdAt: data.createdAt?.toDate() || new Date(),
+      updatedAt: data.updatedAt?.toDate() || new Date(),
+    };
+  }
+  return null;
+}
+
+export async function deletePost(postId: string): Promise<void> {
+  if (!isFirebaseConfigured) {
+    throw new Error("Firebase is not configured.");
+  }
+
+  await deleteDoc(doc(getDb_(), "posts", postId));
+}
+
+export async function toggleLike(postId: string, userId: string): Promise<boolean> {
+  if (!isFirebaseConfigured) {
+    throw new Error("Firebase is not configured.");
+  }
+
+  const likeRef = doc(getDb_(), "posts", postId, "likes", userId);
+  const likeSnap = await getDoc(likeRef);
+  const postRef = doc(getDb_(), "posts", postId);
+
+  if (likeSnap.exists()) {
+    await deleteDoc(likeRef);
+    await updateDoc(postRef, { likeCount: increment(-1) });
+    return false;
+  } else {
+    await setDoc(likeRef, { createdAt: Timestamp.now() });
+    await updateDoc(postRef, { likeCount: increment(1) });
+    return true;
+  }
+}
+
+export async function isPostLiked(postId: string, userId: string): Promise<boolean> {
+  if (!isFirebaseConfigured) {
+    return false;
+  }
+
+  const likeRef = doc(getDb_(), "posts", postId, "likes", userId);
+  const likeSnap = await getDoc(likeRef);
+  return likeSnap.exists();
+}
+
+export async function addComment(
+  postId: string,
+  authorId: string,
+  authorName: string,
+  text: string,
+  authorPhotoUri?: string
+): Promise<string> {
+  if (!isFirebaseConfigured) {
+    throw new Error("Firebase is not configured.");
+  }
+
+  const commentData: Record<string, any> = {
+    postId,
+    authorId,
+    authorName,
+    text,
+    createdAt: Timestamp.now(),
+  };
+
+  if (authorPhotoUri) {
+    commentData.authorPhotoUri = authorPhotoUri;
+  }
+
+  const docRef = await addDoc(collection(getDb_(), "posts", postId, "comments"), commentData);
+  
+  const postRef = doc(getDb_(), "posts", postId);
+  await updateDoc(postRef, { commentCount: increment(1) });
+
+  return docRef.id;
+}
+
+export async function getComments(postId: string): Promise<PostComment[]> {
+  if (!isFirebaseConfigured) {
+    return [];
+  }
+
+  const q = query(
+    collection(getDb_(), "posts", postId, "comments"),
+    orderBy("createdAt", "asc")
+  );
+  const snapshot = await getDocs(q);
+
+  const comments: PostComment[] = [];
+  snapshot.forEach((docSnap) => {
+    const data = docSnap.data();
+    comments.push({
+      id: docSnap.id,
+      postId,
+      authorId: data.authorId,
+      authorName: data.authorName,
+      authorPhotoUri: data.authorPhotoUri,
+      text: data.text,
+      createdAt: data.createdAt?.toDate() || new Date(),
+    });
+  });
+
+  return comments;
+}
+
+export function subscribeToPosts(callback: (posts: Post[]) => void) {
+  if (!isFirebaseConfigured) {
+    callback([]);
+    return () => {};
+  }
+
+  const q = query(
+    collection(getDb_(), "posts"),
+    orderBy("createdAt", "desc"),
+    limit(50)
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const posts: Post[] = [];
+    snapshot.forEach((docSnap) => {
+      posts.push(parsePost(docSnap));
+    });
+    callback(posts);
   });
 }

@@ -14,6 +14,7 @@ import Animated, {
 
 import HomeScreen from "@/screens/HomeScreen";
 import MyRidesScreen from "@/screens/MyRidesScreen";
+import SocialFeedScreen from "@/screens/SocialFeedScreen";
 import ProfileScreen from "@/screens/ProfileScreen";
 import NotificationsScreen from "@/screens/NotificationsScreen";
 import { useTheme } from "@/hooks/useTheme";
@@ -23,6 +24,7 @@ import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 export type MainTabParamList = {
   Home: undefined;
+  Feed: undefined;
   MyRides: undefined;
   Profile: undefined;
   Notifications: undefined;
@@ -108,6 +110,17 @@ export default function MainTabNavigator() {
             headerTitle: "RideSync",
             tabBarIcon: ({ color, size }) => (
               <Feather name="home" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Feed"
+          component={SocialFeedScreen}
+          options={{
+            headerTitle: "Feed",
+            tabBarLabel: "Feed",
+            tabBarIcon: ({ color, size }) => (
+              <Feather name="camera" size={size} color={color} />
             ),
           }}
         />

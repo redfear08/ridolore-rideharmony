@@ -8,6 +8,8 @@ import ActiveRideScreen from "@/screens/ActiveRideScreen";
 import GroupChatScreen from "@/screens/GroupChatScreen";
 import RiderProfileScreen from "@/screens/RiderProfileScreen";
 import ProfileSetupScreen from "@/screens/ProfileSetupScreen";
+import CreatePostScreen from "@/screens/CreatePostScreen";
+import PostDetailScreen from "@/screens/PostDetailScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
 export type RootStackParamList = {
@@ -19,6 +21,8 @@ export type RootStackParamList = {
   ActiveRide: { rideId: string };
   GroupChat: { rideId: string };
   RiderProfile: { riderId: string };
+  CreatePost: undefined;
+  PostDetail: { postId: string; focusComments?: boolean };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -94,6 +98,23 @@ export default function RootStackNavigator() {
         options={{
           presentation: "modal",
           headerTitle: "Rider Profile",
+        }}
+      />
+      <Stack.Screen
+        name="CreatePost"
+        component={CreatePostScreen}
+        options={{
+          ...opaqueScreenOptions,
+          presentation: "modal",
+          headerTitle: "New Post",
+        }}
+      />
+      <Stack.Screen
+        name="PostDetail"
+        component={PostDetailScreen}
+        options={{
+          ...opaqueScreenOptions,
+          headerTitle: "Post",
         }}
       />
     </Stack.Navigator>

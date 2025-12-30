@@ -10,6 +10,8 @@ Firebase integration complete with Authentication and Firestore for cloud data p
 
 **Real-Time Location Tracking:** Live GPS tracking implemented with high-precision (BestForNavigation accuracy). Each rider's location is published to Firebase subcollection `rides/{rideId}/locations/{riderId}` and streamed to all riders in real-time. Location updates are debounced (5m distance or 5s time threshold) to balance accuracy with battery/bandwidth usage.
 
+**Social Feed:** Instagram-style social media feed for registered riders. Users can post vehicle-related content (photos, ride announcements), like posts, and comment. Data stored in Firebase `posts` collection with `posts/{postId}/likes` and `posts/{postId}/comments` subcollections. Real-time updates via Firebase onSnapshot.
+
 ## Tech Stack
 - **Frontend**: React Native with Expo (Expo Go compatible)
 - **Backend**: Express.js + Firebase (Firestore + Auth)
@@ -39,6 +41,7 @@ client/
 │   ├── Card.tsx         # Elevated card container
 │   ├── HeaderTitle.tsx  # App branding header
 │   ├── QRCodeDisplay.tsx # QR code generation
+│   ├── PostCard.tsx     # Social feed post display
 │   └── ...
 ├── constants/
 │   └── theme.ts         # Design tokens (colors, spacing, typography)
@@ -53,6 +56,9 @@ client/
 ├── screens/
 │   ├── HomeScreen.tsx        # Home with upcoming rides
 │   ├── MyRidesScreen.tsx     # Ride history list
+│   ├── SocialFeedScreen.tsx  # Instagram-style social feed
+│   ├── CreatePostScreen.tsx  # Create new post with media
+│   ├── PostDetailScreen.tsx  # View post with comments
 │   ├── ProfileScreen.tsx     # User profile & settings
 │   ├── NotificationsScreen.tsx
 │   ├── CreateRideScreen.tsx  # Create new ride
@@ -75,6 +81,11 @@ client/
 7. **SOS Button**: Emergency alert to group
 8. **Captain Controls**: Only ride creator can end the ride; other riders can only leave
 9. **Share During Ride**: All participants can share QR code to invite more riders during active ride
+10. **Social Feed**: Instagram-style feed where riders can post vehicle-related content
+    - Post photos with captions
+    - Like and comment on posts
+    - Ride announcements
+    - Real-time feed updates via Firebase
 
 ## Design System
 - Primary: #2563EB (Blue)
@@ -102,3 +113,6 @@ The app is optimized to handle 50+ riders without lag:
 - Ride search and filters
 - Stale location indicator (show when a rider's location is outdated)
 - Marker clustering for very large groups (100+ riders)
+- Video posts in social feed
+- User follow/following system
+- Feed filtering by post type
