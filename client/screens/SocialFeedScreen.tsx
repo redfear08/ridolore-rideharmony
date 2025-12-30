@@ -17,7 +17,9 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
+  runOnJS,
 } from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
 import { useTheme } from "@/hooks/useTheme";
 import { useAuth } from "@/contexts/AuthContext";
@@ -101,6 +103,18 @@ export default function SocialFeedScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const navigateToCreateRide = useCallback(() => {
+    navigation.navigate("CreateRide");
+  }, [navigation]);
+
+  const swipeGesture = Gesture.Pan()
+    .activeOffsetX([50, 50])
+    .onEnd((event) => {
+      if (event.translationX > 100 && Math.abs(event.velocityX) > 300) {
+        runOnJS(navigateToCreateRide)();
+      }
+    });
+
   useEffect(() => {
     const unsubscribe = subscribeToPosts((newPosts) => {
       setPosts(newPosts);
@@ -155,8 +169,9 @@ export default function SocialFeedScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <FlatList
+    <GestureDetector gesture={swipeGesture}>
+      <ThemedView style={styles.container}>
+        <FlatList
         data={posts}
         renderItem={renderPost}
         keyExtractor={keyExtractor}
@@ -195,8 +210,9 @@ export default function SocialFeedScreen() {
           </View>
         }
       />
-      <CreatePostFAB />
-    </ThemedView>
+        <CreatePostFAB />
+      </ThemedView>
+    </GestureDetector>
   );
 }
 
