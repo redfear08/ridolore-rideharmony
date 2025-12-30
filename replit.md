@@ -87,7 +87,18 @@ client/
 - Backend API on port 5000
 - Use Expo Go on mobile device for full features (camera, maps, location)
 
+## Performance Optimizations
+The app is optimized to handle 50+ riders without lag:
+- **Adaptive GPS throttling**: Location update frequency adjusts based on speed (slower updates when stationary)
+- **Memoized map markers**: Uses React.memo and useMemo to prevent unnecessary re-renders
+- **tracksViewChanges=false**: Disables continuous marker updates for better map performance
+- **Shallow location comparison**: Only updates state when rider positions actually change
+- **Virtualized lists**: FlatList with proper keyExtractor, getItemLayout, and removeClippedSubviews
+- **Memoized components**: RiderItem, MessageItem are memoized to prevent re-renders
+- **Optimized Firebase listeners**: Single subscription per ride with cleanup on unmount
+
 ## Next Phase Features
 - Push notifications for SOS alerts
 - Ride search and filters
 - Stale location indicator (show when a rider's location is outdated)
+- Marker clustering for very large groups (100+ riders)

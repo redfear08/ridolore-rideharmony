@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, memo, useMemo } from "react";
 import {
   StyleSheet,
   View,
@@ -19,9 +19,81 @@ import { ThemedView } from "@/components/ThemedView";
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
-import { useRides, useProfile, Message } from "@/hooks/useStorage";
+import { useRides, useProfile, Message, Rider } from "@/hooks/useStorage";
 
 type GroupChatRouteProp = RouteProp<RootStackParamList, "GroupChat">;
+
+const MESSAGE_HEIGHT_ESTIMATE = 80;
+
+interface MessageItemProps {
+  item: Message;
+  isOwnMessage: boolean;
+  rider: Rider | undefined;
+  theme: any;
+}
+
+const MessageItem = memo(function MessageItem({ item, isOwnMessage, rider, theme }: MessageItemProps) {
+  const formatTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
+  return (
+    <View
+      style={[
+        styles.messageContainer,
+        isOwnMessage ? styles.ownMessageContainer : styles.otherMessageContainer,
+      ]}
+    >
+      {!isOwnMessage ? (
+        <View style={[styles.avatar, { backgroundColor: theme.riderMarker }]}>
+          <ThemedText type="small" style={{ color: "#FFFFFF", fontWeight: "600" }}>
+            {item.senderName.charAt(0)}
+          </ThemedText>
+        </View>
+      ) : null}
+      <View style={styles.messageBubbleWrapper}>
+        {!isOwnMessage ? (
+          <View style={styles.senderInfo}>
+            <ThemedText type="small" style={{ fontWeight: "600" }}>
+              {item.senderName}
+            </ThemedText>
+            {rider ? (
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                {rider.vehicleNumber}
+              </ThemedText>
+            ) : null}
+          </View>
+        ) : null}
+        <View
+          style={[
+            styles.messageBubble,
+            isOwnMessage
+              ? { backgroundColor: theme.primary }
+              : { backgroundColor: theme.backgroundDefault },
+          ]}
+        >
+          <ThemedText
+            type="body"
+            style={{ color: isOwnMessage ? "#FFFFFF" : theme.text }}
+          >
+            {item.text}
+          </ThemedText>
+        </View>
+        <ThemedText
+          type="small"
+          style={[
+            styles.timestamp,
+            { color: theme.textSecondary },
+            isOwnMessage && styles.ownTimestamp,
+          ]}
+        >
+          {formatTime(item.timestamp)}
+        </ThemedText>
+      </View>
+    </View>
+  );
+});
 
 export default function GroupChatScreen() {
   const insets = useSafeAreaInsets();
@@ -47,92 +119,75 @@ export default function GroupChatScreen() {
     setRide(updatedRide);
   }, [route.params.rideId, getRide]);
 
-  const handleSend = async () => {
+  const handleSend = useCallback(async () => {
     if (!messageText.trim() || !profile || !ride) return;
+
+    const textToSend = messageText.trim();
+    setMessageText("");
 
     await addMessage(ride.id, {
       senderId: profile.id,
       senderName: profile.name,
-      text: messageText.trim(),
+      text: textToSend,
     });
 
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
 
-    setMessageText("");
     await refreshRides();
     const updatedRide = getRide(route.params.rideId);
     setRide(updatedRide);
-  };
+  }, [messageText, profile, ride, addMessage, refreshRides, getRide, route.params.rideId]);
 
-  const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  };
+  const riders = useMemo(() => ride?.riders || [], [ride?.riders]);
+  const messages = useMemo(() => ride?.messages || [], [ride?.messages]);
 
-  const renderMessage = ({ item, index }: { item: Message; index: number }) => {
+  const ridersMap = useMemo(() => {
+    const map = new Map<string, Rider>();
+    riders.forEach((r) => map.set(r.id, r));
+    return map;
+  }, [riders]);
+
+  const renderMessage = useCallback(({ item }: { item: Message }) => {
     const isOwnMessage = item.senderId === profile?.id;
-    const rider = ride?.riders.find((r) => r.id === item.senderId);
+    const rider = ridersMap.get(item.senderId);
 
     return (
-      <View
-        style={[
-          styles.messageContainer,
-          isOwnMessage ? styles.ownMessageContainer : styles.otherMessageContainer,
-        ]}
-      >
-        {!isOwnMessage && (
-          <View style={[styles.avatar, { backgroundColor: theme.riderMarker }]}>
-            <ThemedText type="small" style={{ color: "#FFFFFF", fontWeight: "600" }}>
-              {item.senderName.charAt(0)}
-            </ThemedText>
-          </View>
-        )}
-        <View style={styles.messageBubbleWrapper}>
-          {!isOwnMessage && (
-            <View style={styles.senderInfo}>
-              <ThemedText type="small" style={{ fontWeight: "600" }}>
-                {item.senderName}
-              </ThemedText>
-              {rider && (
-                <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                  {rider.vehicleNumber}
-                </ThemedText>
-              )}
-            </View>
-          )}
-          <View
-            style={[
-              styles.messageBubble,
-              isOwnMessage
-                ? { backgroundColor: theme.primary }
-                : { backgroundColor: theme.backgroundDefault },
-            ]}
-          >
-            <ThemedText
-              type="body"
-              style={{ color: isOwnMessage ? "#FFFFFF" : theme.text }}
-            >
-              {item.text}
-            </ThemedText>
-          </View>
-          <ThemedText
-            type="small"
-            style={[
-              styles.timestamp,
-              { color: theme.textSecondary },
-              isOwnMessage && styles.ownTimestamp,
-            ]}
-          >
-            {formatTime(item.timestamp)}
-          </ThemedText>
-        </View>
-      </View>
+      <MessageItem
+        item={item}
+        isOwnMessage={isOwnMessage}
+        rider={rider}
+        theme={theme}
+      />
     );
-  };
+  }, [profile?.id, ridersMap, theme]);
 
-  const messages = ride?.messages || [];
+  const keyExtractor = useCallback((item: Message) => item.id, []);
+
+  const getItemLayout = useCallback((_: any, index: number) => ({
+    length: MESSAGE_HEIGHT_ESTIMATE,
+    offset: MESSAGE_HEIGHT_ESTIMATE * index,
+    index,
+  }), []);
+
+  const handleContentSizeChange = useCallback(() => {
+    if (messages.length > 0) {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }
+  }, [messages.length]);
+
+  const EmptyComponent = useMemo(() => (
+    <View style={styles.emptyContainer}>
+      <Feather name="message-circle" size={48} color={theme.textSecondary} />
+      <ThemedText type="h4" style={{ color: theme.textSecondary }}>
+        No messages yet
+      </ThemedText>
+      <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
+        Start a conversation with your ride group
+      </ThemedText>
+    </View>
+  ), [theme.textSecondary]);
 
   return (
     <ThemedView style={styles.container}>
@@ -144,19 +199,20 @@ export default function GroupChatScreen() {
         <FlatList
           ref={flatListRef}
           data={messages}
-          keyExtractor={(item) => item.id}
+          keyExtractor={keyExtractor}
           renderItem={renderMessage}
+          getItemLayout={getItemLayout}
           contentContainerStyle={[
             styles.messagesList,
             { paddingBottom: Spacing.lg },
           ]}
           showsVerticalScrollIndicator={false}
           inverted={false}
-          onContentSizeChange={() => {
-            if (messages.length > 0) {
-              flatListRef.current?.scrollToEnd({ animated: true });
-            }
-          }}
+          onContentSizeChange={handleContentSizeChange}
+          initialNumToRender={15}
+          maxToRenderPerBatch={10}
+          windowSize={10}
+          removeClippedSubviews={Platform.OS !== "web"}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -165,17 +221,7 @@ export default function GroupChatScreen() {
               colors={[theme.primary]}
             />
           }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Feather name="message-circle" size={48} color={theme.textSecondary} />
-              <ThemedText type="h4" style={{ color: theme.textSecondary }}>
-                No messages yet
-              </ThemedText>
-              <ThemedText type="body" style={{ color: theme.textSecondary, textAlign: "center" }}>
-                Start a conversation with your ride group
-              </ThemedText>
-            </View>
-          }
+          ListEmptyComponent={EmptyComponent}
         />
 
         <View

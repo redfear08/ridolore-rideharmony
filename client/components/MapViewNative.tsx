@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo, memo } from "react";
 import { StyleSheet, View } from "react-native";
 import MapView, { Marker, Polyline, Region } from "react-native-maps";
 import { Feather } from "@expo/vector-icons";
@@ -35,7 +35,82 @@ interface MapViewNativeProps {
   onRiderPress: (rider: RiderLocation) => void;
 }
 
-export function MapViewNative({
+interface RiderMarkerProps {
+  rider: RiderLocation;
+  color: string;
+  onPress: () => void;
+}
+
+const RiderMarkerComponent = memo(function RiderMarkerComponent({ 
+  rider, 
+  color, 
+  onPress 
+}: RiderMarkerProps) {
+  return (
+    <Marker
+      coordinate={{ latitude: rider.latitude, longitude: rider.longitude }}
+      onPress={onPress}
+      anchor={{ x: 0.5, y: 0.5 }}
+      tracksViewChanges={false}
+    >
+      <View style={[styles.riderMarker, { backgroundColor: color }]}>
+        <ThemedText type="small" style={{ color: "#FFFFFF", fontWeight: "700" }}>
+          {rider.name.charAt(0)}
+        </ThemedText>
+      </View>
+    </Marker>
+  );
+});
+
+interface DestinationMarkerProps {
+  coordinate: Coordinate;
+  color: string;
+}
+
+const DestinationMarkerComponent = memo(function DestinationMarkerComponent({ 
+  coordinate, 
+  color 
+}: DestinationMarkerProps) {
+  return (
+    <Marker 
+      coordinate={coordinate}
+      anchor={{ x: 0.5, y: 1 }}
+      tracksViewChanges={false}
+    >
+      <View style={styles.destinationMarker}>
+        <View style={[styles.destinationPin, { backgroundColor: color }]}>
+          <Feather name="flag" size={16} color="#FFFFFF" />
+        </View>
+        <View style={[styles.destinationPinTail, { borderTopColor: color }]} />
+      </View>
+    </Marker>
+  );
+});
+
+interface RoutePolylineProps {
+  coordinates: Coordinate[];
+  color: string;
+}
+
+const RoutePolylineComponent = memo(function RoutePolylineComponent({ 
+  coordinates, 
+  color 
+}: RoutePolylineProps) {
+  if (coordinates.length <= 1) return null;
+  
+  return (
+    <Polyline
+      coordinates={coordinates}
+      strokeColor={color}
+      strokeWidth={4}
+      lineDashPattern={[0]}
+      lineJoin="round"
+      lineCap="round"
+    />
+  );
+});
+
+function MapViewNativeInner({
   mapRef,
   initialRegion,
   isDark,
@@ -46,6 +121,11 @@ export function MapViewNative({
   theme,
   onRiderPress,
 }: MapViewNativeProps) {
+  const otherRiders = useMemo(() => 
+    riderLocations.filter((r) => r.id !== currentUserId),
+    [riderLocations, currentUserId]
+  );
+
   return (
     <MapView
       ref={mapRef}
@@ -56,51 +136,33 @@ export function MapViewNative({
       userInterfaceStyle={isDark ? "dark" : "light"}
       showsCompass={true}
       showsScale={true}
+      moveOnMarkerPress={false}
     >
       {destinationCoord ? (
-        <Marker 
-          coordinate={destinationCoord}
-          anchor={{ x: 0.5, y: 1 }}
-        >
-          <View style={styles.destinationMarker}>
-            <View style={[styles.destinationPin, { backgroundColor: theme.accent }]}>
-              <Feather name="flag" size={16} color="#FFFFFF" />
-            </View>
-            <View style={[styles.destinationPinTail, { borderTopColor: theme.accent }]} />
-          </View>
-        </Marker>
-      ) : null}
-
-      {riderLocations
-        .filter((r) => r.id !== currentUserId)
-        .map((rider) => (
-          <Marker
-            key={rider.id}
-            coordinate={{ latitude: rider.latitude, longitude: rider.longitude }}
-            onPress={() => onRiderPress(rider)}
-            anchor={{ x: 0.5, y: 0.5 }}
-          >
-            <View style={[styles.riderMarker, { backgroundColor: theme.riderMarker }]}>
-              <ThemedText type="small" style={{ color: "#FFFFFF", fontWeight: "700" }}>
-                {rider.name.charAt(0)}
-              </ThemedText>
-            </View>
-          </Marker>
-        ))}
-
-      {routeCoordinates.length > 1 ? (
-        <Polyline
-          coordinates={routeCoordinates}
-          strokeColor={theme.primary}
-          strokeWidth={4}
-          lineDashPattern={[0]}
-          lineJoin="round"
-          lineCap="round"
+        <DestinationMarkerComponent 
+          coordinate={destinationCoord} 
+          color={theme.accent} 
         />
       ) : null}
+
+      {otherRiders.map((rider) => (
+        <RiderMarkerComponent
+          key={rider.id}
+          rider={rider}
+          color={theme.riderMarker}
+          onPress={() => onRiderPress(rider)}
+        />
+      ))}
+
+      <RoutePolylineComponent 
+        coordinates={routeCoordinates} 
+        color={theme.primary} 
+      />
     </MapView>
   );
 }
+
+export const MapViewNative = memo(MapViewNativeInner);
 
 const styles = StyleSheet.create({
   riderMarker: {

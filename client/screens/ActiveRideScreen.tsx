@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { StyleSheet, View, Pressable, Alert, Platform, Linking, Share } from "react-native";
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
+import { StyleSheet, View, Pressable, Alert, Platform, Linking, Share, FlatList } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -28,6 +28,59 @@ interface Coordinate {
   longitude: number;
 }
 
+const RIDER_ITEM_HEIGHT = 60;
+
+interface RiderItemProps {
+  rider: Rider;
+  isCurrentUser: boolean;
+  theme: any;
+  onPress: () => void;
+}
+
+const RiderItem = memo(function RiderItem({ rider, isCurrentUser, theme, onPress }: RiderItemProps) {
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.riderItem,
+        { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.7 : 1 },
+      ]}
+      onPress={onPress}
+    >
+      <View style={[styles.riderAvatar, { backgroundColor: theme.primary }]}>
+        <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "600" }}>
+          {(rider.name || "R").charAt(0)}
+        </ThemedText>
+      </View>
+      <View style={styles.riderDetails}>
+        <ThemedText type="body" style={{ fontWeight: "500" }}>
+          {rider.name || "Unknown Rider"}
+          {isCurrentUser ? " (You)" : ""}
+        </ThemedText>
+        <ThemedText type="small" style={{ color: theme.textSecondary }}>
+          {rider.vehicleName || "Vehicle"} - {rider.vehicleNumber || "N/A"}
+        </ThemedText>
+      </View>
+    </Pressable>
+  );
+});
+
+function areLocationsEqual(prev: RiderLocation[], next: RiderLocation[]): boolean {
+  if (prev.length !== next.length) return false;
+  
+  const prevMap = new Map<string, RiderLocation>();
+  prev.forEach((loc) => prevMap.set(loc.riderId, loc));
+  
+  for (const n of next) {
+    const p = prevMap.get(n.riderId);
+    if (!p) return false;
+    const latDiff = Math.abs(p.latitude - n.latitude);
+    const lngDiff = Math.abs(p.longitude - n.longitude);
+    if (latDiff > 0.00001 || lngDiff > 0.00001) return false;
+  }
+  
+  return true;
+}
+
 export default function ActiveRideScreen() {
   const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
@@ -49,7 +102,8 @@ export default function ActiveRideScreen() {
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
   const hasSetupFallbackRoute = useRef(false);
   const hasFetchedFromFirebase = useRef(false);
-  const lastLocationUpdate = useRef<{ lat: number; lng: number; time: number } | null>(null);
+  const lastLocationUpdate = useRef<{ lat: number; lng: number; time: number; speed: number } | null>(null);
+  const previousLocationsRef = useRef<RiderLocation[]>([]);
 
   useEffect(() => {
     const loadRide = async () => {
@@ -79,19 +133,34 @@ export default function ActiveRideScreen() {
     let locationSubscription: Location.LocationSubscription | null = null;
     const rideId = route.params.rideId;
 
-    const shouldUpdateFirebase = (lat: number, lng: number): boolean => {
+    const getAdaptiveThresholds = (speedMps: number | null) => {
+      const speedKmh = (speedMps || 0) * 3.6;
+      
+      if (speedKmh < 5) {
+        return { distance: 10, time: 10000 };
+      } else if (speedKmh < 30) {
+        return { distance: 8, time: 7000 };
+      } else if (speedKmh < 60) {
+        return { distance: 10, time: 5000 };
+      } else {
+        return { distance: 15, time: 4000 };
+      }
+    };
+
+    const shouldUpdateFirebase = (lat: number, lng: number, speed: number | null): boolean => {
       const now = Date.now();
       const last = lastLocationUpdate.current;
       
       if (!last) return true;
       
+      const thresholds = getAdaptiveThresholds(speed);
       const timeDiff = now - last.time;
       const distance = Math.sqrt(
         Math.pow((lat - last.lat) * 111320, 2) + 
         Math.pow((lng - last.lng) * 111320 * Math.cos(lat * Math.PI / 180), 2)
       );
       
-      return distance >= 5 || timeDiff >= 5000;
+      return distance >= thresholds.distance || timeDiff >= thresholds.time;
     };
 
     const publishLocation = async (loc: Location.LocationObject) => {
@@ -99,18 +168,19 @@ export default function ActiveRideScreen() {
       
       const lat = loc.coords.latitude;
       const lng = loc.coords.longitude;
+      const speed = loc.coords.speed;
       
-      if (!shouldUpdateFirebase(lat, lng)) return;
+      if (!shouldUpdateFirebase(lat, lng, speed)) return;
       
       try {
         await updateRiderLocation(rideId, profile.id, profile.name, {
           latitude: lat,
           longitude: lng,
           heading: loc.coords.heading ?? undefined,
-          speed: loc.coords.speed ?? undefined,
+          speed: speed ?? undefined,
           accuracy: loc.coords.accuracy ?? undefined,
         });
-        lastLocationUpdate.current = { lat, lng, time: Date.now() };
+        lastLocationUpdate.current = { lat, lng, time: Date.now(), speed: speed || 0 };
       } catch (error) {
         console.error("Failed to update location:", error);
       }
@@ -130,7 +200,7 @@ export default function ActiveRideScreen() {
       }
 
       const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.BestForNavigation,
+        accuracy: Location.Accuracy.High,
       });
       const currentLocation = {
         latitude: location.coords.latitude,
@@ -141,9 +211,9 @@ export default function ActiveRideScreen() {
 
       locationSubscription = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.BestForNavigation,
+          accuracy: Location.Accuracy.High,
           distanceInterval: 5,
-          timeInterval: 2000,
+          timeInterval: 3000,
           mayShowUserSettingsDialog: true,
         },
         (loc) => {
@@ -167,7 +237,11 @@ export default function ActiveRideScreen() {
   useEffect(() => {
     const rideId = route.params.rideId;
     const unsubscribe = subscribeToRiderLocations(rideId, (locations) => {
-      setRiderLocations(locations);
+      const clonedLocations = locations.map((loc) => ({ ...loc }));
+      if (!areLocationsEqual(previousLocationsRef.current, clonedLocations)) {
+        previousLocationsRef.current = clonedLocations;
+        setRiderLocations(clonedLocations);
+      }
     });
 
     return () => {
@@ -235,20 +309,15 @@ export default function ActiveRideScreen() {
     return points;
   };
 
+  const initialFitDone = useRef(false);
   useEffect(() => {
-    if (mapRef.current && userLocation && Platform.OS !== "web") {
+    if (mapRef.current && userLocation && Platform.OS !== "web" && !initialFitDone.current) {
+      initialFitDone.current = true;
       const allCoords: Coordinate[] = [userLocation];
       
       if (destinationCoord) {
         allCoords.push(destinationCoord);
       }
-      
-      riderLocations.forEach((loc) => {
-        allCoords.push({
-          latitude: loc.latitude,
-          longitude: loc.longitude,
-        });
-      });
       
       if (allCoords.length > 1) {
         setTimeout(() => {
@@ -259,11 +328,11 @@ export default function ActiveRideScreen() {
         }, 500);
       }
     }
-  }, [userLocation, destinationCoord, riderLocations]);
+  }, [userLocation, destinationCoord]);
 
   const isCaptain = profile?.id && ride?.creatorId === profile.id;
 
-  const handleEndRide = async () => {
+  const handleEndRide = useCallback(async () => {
     const doEndRide = async () => {
       try {
         if (ride) {
@@ -293,9 +362,9 @@ export default function ActiveRideScreen() {
         ]
       );
     }
-  };
+  }, [ride, updateRide, navigation]);
 
-  const handleLeaveRide = async () => {
+  const handleLeaveRide = useCallback(async () => {
     const doLeaveRide = async () => {
       try {
         if (ride && profile?.id) {
@@ -325,9 +394,9 @@ export default function ActiveRideScreen() {
         ]
       );
     }
-  };
+  }, [ride, profile?.id, navigation]);
 
-  const handleSOS = () => {
+  const handleSOS = useCallback(() => {
     const doSOS = () => {
       if (Platform.OS === "web") {
         window.alert("SOS Sent! All riders have been notified of your emergency.");
@@ -354,13 +423,13 @@ export default function ActiveRideScreen() {
         ]
       );
     }
-  };
+  }, []);
 
-  const handleOpenChat = () => {
+  const handleOpenChat = useCallback(() => {
     navigation.navigate("GroupChat", { rideId: route.params.rideId });
-  };
+  }, [navigation, route.params.rideId]);
 
-  const handleShareQR = async () => {
+  const handleShareQR = useCallback(async () => {
     try {
       const joinCode = ride?.joinCode || route.params.rideId;
       await Share.share({
@@ -370,13 +439,13 @@ export default function ActiveRideScreen() {
     } catch (error) {
       console.error("Error sharing:", error);
     }
-  };
+  }, [ride?.joinCode, route.params.rideId]);
 
-  const handleRiderPress = (rider: Rider | { id: string; name: string }) => {
+  const handleRiderPress = useCallback((rider: Rider | { id: string; name: string }) => {
     navigation.navigate("RiderProfile", { riderId: rider.id });
-  };
+  }, [navigation]);
 
-  const handleCenterMap = () => {
+  const handleCenterMap = useCallback(() => {
     if (mapRef.current && userLocation) {
       mapRef.current.animateToRegion({
         latitude: userLocation.latitude,
@@ -385,15 +454,54 @@ export default function ActiveRideScreen() {
         longitudeDelta: 0.02,
       }, 500);
     }
-  };
+  }, [userLocation]);
 
-  const handleOpenSettings = async () => {
+  const handleOpenSettings = useCallback(async () => {
     try {
       await Linking.openSettings();
     } catch (error) {
       console.error("Could not open settings:", error);
     }
-  };
+  }, []);
+
+  const toggleRidersList = useCallback(() => {
+    setShowRidersList((prev) => !prev);
+  }, []);
+
+  const riders = useMemo(() => ride?.riders || [], [ride?.riders]);
+  
+  const realRiderLocations = useMemo(() => 
+    riderLocations.map((loc) => ({
+      id: loc.riderId,
+      name: loc.riderName,
+      latitude: loc.latitude,
+      longitude: loc.longitude,
+    })),
+    [riderLocations]
+  );
+
+  const mapTheme = useMemo(() => ({
+    accent: theme.accent,
+    primary: theme.primary,
+    riderMarker: theme.riderMarker,
+  }), [theme.accent, theme.primary, theme.riderMarker]);
+
+  const renderRiderItem = useCallback(({ item }: { item: Rider }) => (
+    <RiderItem
+      rider={item}
+      isCurrentUser={item.id === profile?.id}
+      theme={theme}
+      onPress={() => handleRiderPress(item)}
+    />
+  ), [profile?.id, theme, handleRiderPress]);
+
+  const getItemLayout = useCallback((_: any, index: number) => ({
+    length: RIDER_ITEM_HEIGHT,
+    offset: RIDER_ITEM_HEIGHT * index,
+    index,
+  }), []);
+
+  const keyExtractor = useCallback((item: Rider) => item.id, []);
 
   if (locationPermissionDenied) {
     return (
@@ -461,15 +569,6 @@ export default function ActiveRideScreen() {
     longitudeDelta: 0.03,
   };
 
-  const riders = ride.riders || [];
-  
-  const realRiderLocations = riderLocations.map((loc) => ({
-    id: loc.riderId,
-    name: loc.riderName,
-    latitude: loc.latitude,
-    longitude: loc.longitude,
-  }));
-
   return (
     <View style={styles.container}>
       <MapViewNative
@@ -481,11 +580,7 @@ export default function ActiveRideScreen() {
         routeCoordinates={routeCoordinates}
         riderLocations={realRiderLocations}
         currentUserId={profile?.id}
-        theme={{
-          accent: theme.accent,
-          primary: theme.primary,
-          riderMarker: theme.riderMarker,
-        }}
+        theme={mapTheme}
         onRiderPress={handleRiderPress}
       />
 
@@ -550,7 +645,7 @@ export default function ActiveRideScreen() {
                 styles.actionButton,
                 { backgroundColor: theme.backgroundSecondary, opacity: pressed ? 0.8 : 1 },
               ]}
-              onPress={() => setShowRidersList(!showRidersList)}
+              onPress={toggleRidersList}
             >
               <Feather name="users" size={16} color={theme.text} style={{ marginRight: 4 }} />
               <ThemedText type="small" style={{ fontWeight: "600" }}>
@@ -561,31 +656,18 @@ export default function ActiveRideScreen() {
 
           {showRidersList ? (
             <View style={styles.ridersList}>
-              {riders.map((rider) => (
-                <Pressable
-                  key={rider.id}
-                  style={({ pressed }) => [
-                    styles.riderItem,
-                    { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.7 : 1 },
-                  ]}
-                  onPress={() => handleRiderPress(rider)}
-                >
-                  <View style={[styles.riderAvatar, { backgroundColor: theme.primary }]}>
-                    <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "600" }}>
-                      {(rider.name || "R").charAt(0)}
-                    </ThemedText>
-                  </View>
-                  <View style={styles.riderDetails}>
-                    <ThemedText type="body" style={{ fontWeight: "500" }}>
-                      {rider.name || "Unknown Rider"}
-                      {rider.id === profile?.id ? " (You)" : ""}
-                    </ThemedText>
-                    <ThemedText type="small" style={{ color: theme.textSecondary }}>
-                      {rider.vehicleName || "Vehicle"} - {rider.vehicleNumber || "N/A"}
-                    </ThemedText>
-                  </View>
-                </Pressable>
-              ))}
+              <FlatList
+                data={riders}
+                renderItem={renderRiderItem}
+                keyExtractor={keyExtractor}
+                getItemLayout={getItemLayout}
+                initialNumToRender={5}
+                maxToRenderPerBatch={10}
+                windowSize={5}
+                removeClippedSubviews={true}
+                scrollEnabled={riders.length > 4}
+                style={{ maxHeight: RIDER_ITEM_HEIGHT * 4 }}
+              />
             </View>
           ) : null}
         </View>
@@ -682,6 +764,7 @@ const styles = StyleSheet.create({
     padding: Spacing.sm,
     borderRadius: BorderRadius.sm,
     marginTop: Spacing.sm,
+    height: RIDER_ITEM_HEIGHT,
   },
   riderAvatar: {
     width: 36,
@@ -697,20 +780,18 @@ const styles = StyleSheet.create({
   centerButton: {
     position: "absolute",
     right: Spacing.lg,
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
     ...Shadows.card,
   },
   settingsButton: {
     flexDirection: "row",
+    alignItems: "center",
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.xl,
     borderRadius: BorderRadius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 48,
   },
 });
