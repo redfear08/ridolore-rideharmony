@@ -181,15 +181,16 @@ export default function SocialFeedScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Feather name="camera" size={48} color={theme.textSecondary} />
-            <ThemedText style={styles.emptyTitle}>No Posts Yet</ThemedText>
+            <ThemedText style={styles.emptyTitle}>Coming Soon</ThemedText>
             <ThemedText style={[styles.emptyText, { color: theme.textSecondary }]}>
-              Be the first to share your ride!
+              Share your rides and connect with fellow riders
             </ThemedText>
             <Pressable
               onPress={() => navigation.navigate("CreatePost")}
               style={[styles.createButton, { backgroundColor: theme.primary }]}
             >
-              <ThemedText style={styles.createButtonText}>Create Post</ThemedText>
+              <Feather name="plus" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+              <ThemedText style={styles.createButtonText}>Post Something</ThemedText>
             </Pressable>
           </View>
         }
@@ -228,6 +229,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.md,
+    flexDirection: "row",
+    alignItems: "center",
   },
   createButtonText: {
     color: "#FFFFFF",

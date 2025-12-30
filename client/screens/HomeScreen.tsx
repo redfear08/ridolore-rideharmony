@@ -1,11 +1,13 @@
-import React, { useState, useCallback } from "react";
-import { StyleSheet, ScrollView, View, Pressable, RefreshControl } from "react-native";
+import React, { useState, useCallback, useRef } from "react";
+import { StyleSheet, ScrollView, View, Pressable, RefreshControl, Dimensions } from "react-native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -15,6 +17,8 @@ import { useResponsive } from "@/hooks/useResponsive";
 import { BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useRides } from "@/hooks/useStorage";
+import { MainTabParamList } from "@/navigation/MainTabNavigator";
+import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
 export default function HomeScreen() {
   const headerHeight = useHeaderHeight();
@@ -22,9 +26,29 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const { moderateScale, wp, isSmallScreen } = useResponsive();
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const stackNavigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const tabNavigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
   const { rides, refreshRides } = useRides();
   const [refreshing, setRefreshing] = useState(false);
+  const hasNavigated = useRef(false);
+
+  const navigateToFeed = useCallback(() => {
+    if (!hasNavigated.current) {
+      hasNavigated.current = true;
+      tabNavigation.navigate("Feed");
+      setTimeout(() => {
+        hasNavigated.current = false;
+      }, 500);
+    }
+  }, [tabNavigation]);
+
+  const swipeGesture = Gesture.Pan()
+    .activeOffsetX([-30, 30])
+    .onEnd((event) => {
+      if (event.translationX < -100 && Math.abs(event.velocityX) > 300) {
+        runOnJS(navigateToFeed)();
+      }
+    });
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -44,8 +68,9 @@ export default function HomeScreen() {
   const rideCardWidth = isSmallScreen ? wp(42) : Math.min(wp(45), 200);
 
   return (
-    <ThemedView style={styles.container}>
-      <ScrollView
+    <GestureDetector gesture={swipeGesture}>
+      <ThemedView style={styles.container}>
+        <ScrollView
         contentContainerStyle={[
           styles.content,
           {
@@ -80,7 +105,7 @@ export default function HomeScreen() {
                 <Card
                   key={ride.id}
                   style={{ width: rideCardWidth, padding: spacing.lg, marginRight: index < upcomingRides.length - 1 ? spacing.md : 0 }}
-                  onPress={() => navigation.navigate("ActiveRide", { rideId: ride.id })}
+                  onPress={() => stackNavigation.navigate("ActiveRide", { rideId: ride.id })}
                 >
                   <View>
                     <View style={[styles.iconCircle, { backgroundColor: theme.primary + "20" }]}>
@@ -127,7 +152,7 @@ export default function HomeScreen() {
                 styles.quickAction,
                 { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.7 : 1, padding: spacing.lg, marginRight: spacing.md / 2 },
               ]}
-              onPress={() => navigation.navigate("JoinRide")}
+              onPress={() => stackNavigation.navigate("JoinRide")}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: theme.primary }]}>
                 <Feather name="camera" size={22} color="#FFFFFF" />
@@ -144,7 +169,7 @@ export default function HomeScreen() {
                 styles.quickAction,
                 { backgroundColor: theme.backgroundDefault, opacity: pressed ? 0.7 : 1, padding: spacing.lg, marginLeft: spacing.md / 2 },
               ]}
-              onPress={() => navigation.navigate("CreateRide")}
+              onPress={() => stackNavigation.navigate("CreateRide")}
             >
               <View style={[styles.quickActionIcon, { backgroundColor: theme.accent }]}>
                 <Feather name="plus" size={22} color="#FFFFFF" />
@@ -196,8 +221,9 @@ export default function HomeScreen() {
             )}
           </Card>
         </View>
-      </ScrollView>
-    </ThemedView>
+        </ScrollView>
+      </ThemedView>
+    </GestureDetector>
   );
 }
 
