@@ -111,6 +111,8 @@ export interface UserProfile {
   vehicleName?: string;
   vehicleNumber?: string;
   photoUri?: string;
+  phone?: string;
+  bloodGroup?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -144,6 +146,8 @@ export interface Ride {
   riderIds: string[];
   status: "upcoming" | "active" | "completed";
   joinCode: string;
+  distanceKm?: number;
+  distanceText?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -225,6 +229,8 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
       vehicleName: data.vehicleName,
       vehicleNumber: data.vehicleNumber,
       photoUri: data.photoUri,
+      phone: data.phone,
+      bloodGroup: data.bloodGroup,
       createdAt: data.createdAt?.toDate() || new Date(),
       updatedAt: data.updatedAt?.toDate() || new Date(),
     };

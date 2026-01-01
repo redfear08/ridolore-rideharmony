@@ -29,6 +29,50 @@ export interface UserProfile {
   profilePicture?: string;
   email?: string;
   phone?: string;
+  bloodGroup?: string;
+}
+
+export const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"] as const;
+
+export function validateAge(age: string): { valid: boolean; error?: string } {
+  const ageNum = parseInt(age, 10);
+  if (isNaN(ageNum)) return { valid: false, error: "Age must be a number" };
+  if (ageNum < 18) return { valid: false, error: "Age must be at least 18" };
+  if (ageNum > 90) return { valid: false, error: "Age must be 90 or less" };
+  return { valid: true };
+}
+
+export function validateEmail(email: string): { valid: boolean; error?: string } {
+  if (!email.trim()) return { valid: true };
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) return { valid: false, error: "Please enter a valid email" };
+  return { valid: true };
+}
+
+export function validateVehicleNumber(vehicleNumber: string): { valid: boolean; error?: string } {
+  const cleaned = vehicleNumber.replace(/\s/g, "").toUpperCase();
+  if (cleaned.length !== 10) return { valid: false, error: "Vehicle number must be 10 characters" };
+  return { valid: true };
+}
+
+export function validatePhone(phone: string): { valid: boolean; error?: string } {
+  if (!phone.trim()) return { valid: true };
+  const cleaned = phone.replace(/[\s\-\(\)]/g, "");
+  if (cleaned.length < 10 || cleaned.length > 15) {
+    return { valid: false, error: "Phone number must be 10-15 digits" };
+  }
+  if (!/^\+?\d+$/.test(cleaned)) {
+    return { valid: false, error: "Phone number can only contain digits and +" };
+  }
+  return { valid: true };
+}
+
+export function validateBloodGroup(bloodGroup: string): { valid: boolean; error?: string } {
+  if (!bloodGroup.trim()) return { valid: true };
+  if (!BLOOD_GROUPS.includes(bloodGroup as any)) {
+    return { valid: false, error: "Please select a valid blood group" };
+  }
+  return { valid: true };
 }
 
 export interface Rider {
@@ -70,6 +114,8 @@ export interface Ride {
   riders: Rider[];
   messages: Message[];
   joinCode?: string;
+  distanceKm?: number;
+  distanceText?: string;
 }
 
 function mapFirebaseProfileToLocal(fbProfile: FirebaseUserProfile): UserProfile {
@@ -81,6 +127,8 @@ function mapFirebaseProfileToLocal(fbProfile: FirebaseUserProfile): UserProfile 
     vehicleNumber: fbProfile.vehicleNumber || "",
     profilePicture: fbProfile.photoUri,
     email: fbProfile.email,
+    phone: fbProfile.phone,
+    bloodGroup: fbProfile.bloodGroup,
   };
 }
 
@@ -113,6 +161,8 @@ function mapFirebaseRideToLocal(fbRide: FirebaseRide): Ride {
     })),
     messages: [],
     joinCode: fbRide.joinCode,
+    distanceKm: fbRide.distanceKm,
+    distanceText: fbRide.distanceText,
   };
 }
 
@@ -159,6 +209,8 @@ export function useProfile() {
         vehicleName: newProfile.vehicleName,
         vehicleNumber: newProfile.vehicleNumber,
         photoUri: newProfile.profilePicture,
+        phone: newProfile.phone,
+        bloodGroup: newProfile.bloodGroup,
       });
       setProfile(newProfile);
       await refreshProfile();
