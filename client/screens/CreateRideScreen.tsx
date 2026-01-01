@@ -26,6 +26,12 @@ interface SelectedLocation {
   longitude: number;
 }
 
+interface WaypointLocation {
+  name: string;
+  latitude: number;
+  longitude: number;
+}
+
 export default function CreateRideScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
@@ -38,8 +44,9 @@ export default function CreateRideScreen() {
   const [destination, setDestination] = useState("");
   const [sourceLocation, setSourceLocation] = useState<SelectedLocation | null>(null);
   const [destinationLocation, setDestinationLocation] = useState<SelectedLocation | null>(null);
-  const [waypoints, setWaypoints] = useState<string[]>([]);
+  const [waypoints, setWaypoints] = useState<WaypointLocation[]>([]);
   const [newWaypoint, setNewWaypoint] = useState("");
+  const [pendingWaypointLocation, setPendingWaypointLocation] = useState<SelectedLocation | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
 
@@ -96,10 +103,20 @@ export default function CreateRideScreen() {
   };
 
   const handleAddWaypoint = () => {
-    if (newWaypoint.trim()) {
-      setWaypoints([...waypoints, newWaypoint.trim()]);
+    if (pendingWaypointLocation && newWaypoint.trim()) {
+      setWaypoints([...waypoints, {
+        name: newWaypoint.trim(),
+        latitude: pendingWaypointLocation.latitude,
+        longitude: pendingWaypointLocation.longitude,
+      }]);
       setNewWaypoint("");
+      setPendingWaypointLocation(null);
     }
+  };
+
+  const handleWaypointSelect = (location: SelectedLocation) => {
+    setPendingWaypointLocation(location);
+    setNewWaypoint(location.name);
   };
 
   const handleRemoveWaypoint = (index: number) => {
@@ -136,9 +153,14 @@ export default function CreateRideScreen() {
       const rideData: any = {
         source: source.trim(),
         destination: destination.trim(),
-        waypoints,
+        waypoints: waypoints.map(wp => wp.name),
+        waypointCoords: waypoints.map(wp => ({
+          latitude: wp.latitude,
+          longitude: wp.longitude,
+        })),
         departureTime: new Date().toISOString(),
         createdBy: profile.id,
+        creatorId: profile.id,
       };
       
       if (sourceLocation) {
@@ -157,14 +179,20 @@ export default function CreateRideScreen() {
 
       if (sourceLocation && destinationLocation) {
         try {
+          const waypointCoordinates = waypoints.length > 0 
+            ? waypoints.map(wp => ({ latitude: wp.latitude, longitude: wp.longitude }))
+            : undefined;
+            
           const directions = await getDirections(
             { latitude: sourceLocation.latitude, longitude: sourceLocation.longitude },
-            { latitude: destinationLocation.latitude, longitude: destinationLocation.longitude }
+            { latitude: destinationLocation.latitude, longitude: destinationLocation.longitude },
+            waypointCoordinates
           );
           
           if (directions) {
             rideData.distanceKm = directions.distanceKm;
             rideData.distanceText = directions.distance;
+            rideData.estimatedDuration = directions.duration;
           }
         } catch (error) {
           console.log("Could not fetch distance:", error);
@@ -228,37 +256,34 @@ export default function CreateRideScreen() {
             />
           </View>
 
-          <View style={[styles.inputGroup, { zIndex: 100 }]}>
+          <View style={[styles.inputGroup, { zIndex: 100 - waypoints.length }]}>
             <ThemedText type="small" style={styles.label}>
               Waypoints (Optional)
             </ThemedText>
-            <View style={styles.inputRow}>
-              <TextInput
-                style={[
-                  styles.input,
-                  styles.inputFlex,
-                  {
-                    backgroundColor: theme.backgroundDefault,
-                    color: theme.text,
-                    borderColor: theme.border,
-                  },
-                ]}
-                placeholder="Add a stop along the way"
-                placeholderTextColor={theme.textSecondary}
-                value={newWaypoint}
-                onChangeText={setNewWaypoint}
-                onSubmitEditing={handleAddWaypoint}
-              />
+            <View style={styles.waypointInputRow}>
+              <View style={styles.waypointAutocomplete}>
+                <LocationAutocomplete
+                  value={newWaypoint}
+                  onChangeText={(text) => {
+                    setNewWaypoint(text);
+                    if (!text.trim()) {
+                      setPendingWaypointLocation(null);
+                    }
+                  }}
+                  onSelectLocation={handleWaypointSelect}
+                  placeholder="Search for a stop"
+                />
+              </View>
               <Pressable
                 style={({ pressed }) => [
                   styles.addButton,
                   {
                     backgroundColor: theme.accent,
-                    opacity: newWaypoint.trim() ? (pressed ? 0.7 : 1) : 0.5,
+                    opacity: pendingWaypointLocation ? (pressed ? 0.7 : 1) : 0.5,
                   },
                 ]}
                 onPress={handleAddWaypoint}
-                disabled={!newWaypoint.trim()}
+                disabled={!pendingWaypointLocation}
               >
                 <Feather name="plus" size={20} color="#FFFFFF" />
               </Pressable>
@@ -274,7 +299,7 @@ export default function CreateRideScreen() {
                     <View style={styles.waypointContent}>
                       <View style={[styles.waypointDot, { backgroundColor: theme.accent }]} />
                       <ThemedText type="body" numberOfLines={1} style={styles.waypointText}>
-                        {wp}
+                        {wp.name}
                       </ThemedText>
                     </View>
                     <Pressable
@@ -307,7 +332,7 @@ export default function CreateRideScreen() {
                 <View style={styles.routePoint}>
                   <View style={[styles.routeDot, { backgroundColor: theme.accent }]} />
                   <ThemedText type="body" numberOfLines={1} style={styles.routeText}>
-                    {wp}
+                    {wp.name}
                   </ThemedText>
                 </View>
               </React.Fragment>
@@ -368,6 +393,14 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
     alignItems: "center",
     justifyContent: "center",
+  },
+  waypointInputRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  waypointAutocomplete: {
+    flex: 1,
+    marginRight: Spacing.sm,
   },
   waypointsList: {
     marginTop: Spacing.sm,

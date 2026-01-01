@@ -116,6 +116,7 @@ export interface Ride {
   joinCode?: string;
   distanceKm?: number;
   distanceText?: string;
+  estimatedDuration?: string;
 }
 
 function mapFirebaseProfileToLocal(fbProfile: FirebaseUserProfile): UserProfile {
@@ -163,6 +164,7 @@ function mapFirebaseRideToLocal(fbRide: FirebaseRide): Ride {
     joinCode: fbRide.joinCode,
     distanceKm: fbRide.distanceKm,
     distanceText: fbRide.distanceText,
+    estimatedDuration: fbRide.estimatedDuration,
   };
 }
 
@@ -297,6 +299,9 @@ export function useRides() {
     }
     if (ride.distanceText) {
       rideData.distanceText = ride.distanceText;
+    }
+    if (ride.estimatedDuration) {
+      rideData.estimatedDuration = ride.estimatedDuration;
     }
     
     const rideId = await firebaseCreateRide(user.id, rideData);

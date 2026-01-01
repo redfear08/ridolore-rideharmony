@@ -148,6 +148,7 @@ export interface Ride {
   joinCode: string;
   distanceKm?: number;
   distanceText?: string;
+  estimatedDuration?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -305,6 +306,9 @@ export async function createRide(userId: string, rideData: Omit<Ride, "id" | "cr
   if (rideData.distanceText) {
     ride.distanceText = rideData.distanceText;
   }
+  if (rideData.estimatedDuration) {
+    ride.estimatedDuration = rideData.estimatedDuration;
+  }
   
   const docRef = await addDoc(collection(getDb_(), "rides"), ride);
   return docRef.id;
@@ -339,6 +343,7 @@ export async function getRide(rideId: string): Promise<Ride | null> {
       joinCode: data.joinCode,
       distanceKm: data.distanceKm,
       distanceText: data.distanceText,
+      estimatedDuration: data.estimatedDuration,
       createdAt: data.createdAt?.toDate() || new Date(),
       updatedAt: data.updatedAt?.toDate() || new Date(),
     };
@@ -374,6 +379,9 @@ export async function getRideByCode(joinCode: string): Promise<Ride | null> {
       riderIds: data.riderIds || riders.map((r: Rider) => r.id),
       status: data.status,
       joinCode: data.joinCode,
+      distanceKm: data.distanceKm,
+      distanceText: data.distanceText,
+      estimatedDuration: data.estimatedDuration,
       createdAt: data.createdAt?.toDate() || new Date(),
       updatedAt: data.updatedAt?.toDate() || new Date(),
     };

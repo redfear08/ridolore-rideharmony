@@ -607,6 +607,27 @@ export default function ActiveRideScreen() {
             </Pressable>
           </View>
 
+          {(ride.estimatedDuration || ride.distanceText) ? (
+            <View style={styles.etaRow}>
+              {ride.estimatedDuration ? (
+                <View style={styles.etaItem}>
+                  <Feather name="clock" size={14} color={theme.primary} />
+                  <ThemedText type="small" style={[styles.etaText, { color: theme.text }]}>
+                    {ride.estimatedDuration}
+                  </ThemedText>
+                </View>
+              ) : null}
+              {ride.distanceText ? (
+                <View style={styles.etaItem}>
+                  <Feather name="map" size={14} color={theme.accent} />
+                  <ThemedText type="small" style={[styles.etaText, { color: theme.text }]}>
+                    {ride.distanceText}
+                  </ThemedText>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
           <View style={styles.actionButtons}>
             <Pressable
               style={({ pressed }) => [
@@ -740,6 +761,22 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
     minHeight: 44,
     justifyContent: "center",
+  },
+  etaRow: {
+    flexDirection: "row",
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(0,0,0,0.1)",
+  },
+  etaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: Spacing.lg,
+  },
+  etaText: {
+    marginLeft: Spacing.xs,
+    fontWeight: "600",
   },
   actionButtons: {
     flexDirection: "row",
