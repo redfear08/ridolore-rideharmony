@@ -569,6 +569,35 @@ export default function ActiveRideScreen() {
     longitudeDelta: 0.03,
   };
 
+  const safeRiderLocations = useMemo(() => 
+    (realRiderLocations || []).filter(loc => 
+      loc && 
+      typeof loc.latitude === 'number' && 
+      typeof loc.longitude === 'number' &&
+      !isNaN(loc.latitude) && 
+      !isNaN(loc.longitude)
+    ),
+    [realRiderLocations]
+  );
+
+  const safeRouteCoordinates = useMemo(() =>
+    (routeCoordinates || []).filter(coord =>
+      coord &&
+      typeof coord.latitude === 'number' &&
+      typeof coord.longitude === 'number' &&
+      !isNaN(coord.latitude) &&
+      !isNaN(coord.longitude)
+    ),
+    [routeCoordinates]
+  );
+
+  const safeDestinationCoord = useMemo(() => {
+    if (!destinationCoord) return null;
+    if (typeof destinationCoord.latitude !== 'number' || typeof destinationCoord.longitude !== 'number') return null;
+    if (isNaN(destinationCoord.latitude) || isNaN(destinationCoord.longitude)) return null;
+    return destinationCoord;
+  }, [destinationCoord]);
+
   return (
     <View style={styles.container}>
       <MapViewNative
@@ -576,10 +605,10 @@ export default function ActiveRideScreen() {
         initialRegion={defaultRegion}
         isDark={isDark}
         userLocation={userLocation}
-        destinationCoord={destinationCoord}
-        routeCoordinates={routeCoordinates}
-        riderLocations={realRiderLocations}
-        currentUserId={profile?.id}
+        destinationCoord={safeDestinationCoord}
+        routeCoordinates={safeRouteCoordinates}
+        riderLocations={safeRiderLocations}
+        currentUserId={profile?.id || ""}
         theme={mapTheme}
         onRiderPress={handleRiderPress}
       />

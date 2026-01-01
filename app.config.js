@@ -1,6 +1,22 @@
 export default ({ config }) => {
+  const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY || config.extra?.googleMapsApiKey;
+  
   return {
     ...config,
+    android: {
+      ...config.android,
+      config: {
+        googleMaps: {
+          apiKey: googleMapsApiKey,
+        },
+      },
+    },
+    ios: {
+      ...config.ios,
+      config: {
+        googleMapsApiKey: googleMapsApiKey,
+      },
+    },
     extra: {
       ...config.extra,
       firebaseApiKey: process.env.FIREBASE_API_KEY || config.extra?.firebaseApiKey,
@@ -9,7 +25,7 @@ export default ({ config }) => {
       firebaseStorageBucket: process.env.FIREBASE_STORAGE_BUCKET || config.extra?.firebaseStorageBucket,
       firebaseMessagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || config.extra?.firebaseMessagingSenderId,
       firebaseAppId: process.env.FIREBASE_APP_ID || config.extra?.firebaseAppId,
-      googleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY || config.extra?.googleMapsApiKey,
+      googleMapsApiKey: googleMapsApiKey,
       eas: {
         projectId: "c655d7c5-d1f8-4b6f-89f5-05e5955025d4",
       },
