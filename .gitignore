@@ -41,3 +41,7 @@ app-example
 # generated native folders
 /ios
 /android
+
+# Android credentials
+credentials.json
+android/keystores/
