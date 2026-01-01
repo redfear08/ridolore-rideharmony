@@ -39,6 +39,12 @@ export default function ProfileScreen() {
 
   const completedRides = rides.filter((r) => r.status === "completed").length;
   const totalRides = rides.length;
+  const totalMiles = rides
+    .filter((r) => r.status === "completed" && r.distanceKm)
+    .reduce((sum, r) => sum + (r.distanceKm || 0) * 0.621371, 0);
+  const totalKm = rides
+    .filter((r) => r.status === "completed" && r.distanceKm)
+    .reduce((sum, r) => sum + (r.distanceKm || 0), 0);
 
   const handlePickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -159,6 +165,47 @@ export default function ProfileScreen() {
           </ThemedText>
         </View>
 
+        {(profile.phone || profile.email || profile.bloodGroup) ? (
+          <Card style={styles.vehicleCard}>
+            <View style={styles.vehicleHeader}>
+              <Feather name="user" size={20} color={theme.primary} />
+              <ThemedText type="h4" style={{ marginLeft: Spacing.sm }}>Personal Info</ThemedText>
+            </View>
+            <View style={styles.vehicleDetails}>
+              {profile.phone ? (
+                <>
+                  <View style={styles.vehicleRow}>
+                    <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                      Phone
+                    </ThemedText>
+                    <ThemedText type="body">{profile.phone}</ThemedText>
+                  </View>
+                  {(profile.email || profile.bloodGroup) ? <View style={[styles.divider, { backgroundColor: theme.border }]} /> : null}
+                </>
+              ) : null}
+              {profile.email ? (
+                <>
+                  <View style={styles.vehicleRow}>
+                    <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                      Email
+                    </ThemedText>
+                    <ThemedText type="body">{profile.email}</ThemedText>
+                  </View>
+                  {profile.bloodGroup ? <View style={[styles.divider, { backgroundColor: theme.border }]} /> : null}
+                </>
+              ) : null}
+              {profile.bloodGroup ? (
+                <View style={styles.vehicleRow}>
+                  <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                    Blood Group
+                  </ThemedText>
+                  <ThemedText type="body" style={{ color: theme.danger, fontWeight: "600" }}>{profile.bloodGroup}</ThemedText>
+                </View>
+              ) : null}
+            </View>
+          </Card>
+        ) : null}
+
         <Card style={styles.vehicleCard}>
           <View style={styles.vehicleHeader}>
             <Feather name="truck" size={20} color={theme.primary} />
@@ -201,6 +248,26 @@ export default function ProfileScreen() {
               </ThemedText>
               <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
                 Completed
+              </ThemedText>
+            </View>
+          </View>
+          <View style={[styles.divider, { backgroundColor: theme.border, marginVertical: Spacing.md }]} />
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <ThemedText type="h2" style={{ color: theme.primary }}>
+                {totalMiles.toFixed(1)}
+              </ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
+                Miles Covered
+              </ThemedText>
+            </View>
+            <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
+            <View style={styles.statItem}>
+              <ThemedText type="h2" style={{ color: theme.accent }}>
+                {totalKm.toFixed(1)}
+              </ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary, marginTop: Spacing.xs }}>
+                Kilometers
               </ThemedText>
             </View>
           </View>

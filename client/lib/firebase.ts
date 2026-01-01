@@ -299,6 +299,12 @@ export async function createRide(userId: string, rideData: Omit<Ride, "id" | "cr
   if (rideData.waypointCoords) {
     ride.waypointCoords = rideData.waypointCoords;
   }
+  if (rideData.distanceKm !== undefined) {
+    ride.distanceKm = rideData.distanceKm;
+  }
+  if (rideData.distanceText) {
+    ride.distanceText = rideData.distanceText;
+  }
   
   const docRef = await addDoc(collection(getDb_(), "rides"), ride);
   return docRef.id;
@@ -331,6 +337,8 @@ export async function getRide(rideId: string): Promise<Ride | null> {
       riderIds: data.riderIds || riders.map((r: Rider) => r.id),
       status: data.status,
       joinCode: data.joinCode,
+      distanceKm: data.distanceKm,
+      distanceText: data.distanceText,
       createdAt: data.createdAt?.toDate() || new Date(),
       updatedAt: data.updatedAt?.toDate() || new Date(),
     };

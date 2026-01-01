@@ -292,6 +292,12 @@ export function useRides() {
     if (ride.waypointCoords) {
       rideData.waypointCoords = ride.waypointCoords;
     }
+    if (ride.distanceKm) {
+      rideData.distanceKm = ride.distanceKm;
+    }
+    if (ride.distanceText) {
+      rideData.distanceText = ride.distanceText;
+    }
     
     const rideId = await firebaseCreateRide(user.id, rideData);
     const newRide = await firebaseGetRide(rideId);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { StyleSheet, View, TextInput, Pressable, Image, Alert } from "react-native";
+import { StyleSheet, View, TextInput, Pressable, Image, Alert, ScrollView, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -13,7 +13,15 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
-import { useProfile, UserProfile } from "@/hooks/useStorage";
+import {
+  useProfile,
+  UserProfile,
+  BLOOD_GROUPS,
+  validateAge,
+  validateEmail,
+  validateVehicleNumber,
+  validatePhone,
+} from "@/hooks/useStorage";
 
 export default function ProfileSetupScreen() {
   const insets = useSafeAreaInsets();
@@ -26,6 +34,12 @@ export default function ProfileSetupScreen() {
   const [vehicleName, setVehicleName] = useState(profile?.vehicleName || "");
   const [vehicleNumber, setVehicleNumber] = useState(profile?.vehicleNumber || "");
   const [profilePicture, setProfilePicture] = useState(profile?.profilePicture || "");
+  const [phone, setPhone] = useState(profile?.phone || "");
+  const [email, setEmail] = useState(profile?.email || "");
+  const [bloodGroup, setBloodGroup] = useState(profile?.bloodGroup || "");
+  const [showBloodGroupPicker, setShowBloodGroupPicker] = useState(false);
+
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (profile) {
@@ -34,8 +48,37 @@ export default function ProfileSetupScreen() {
       setVehicleName(profile.vehicleName);
       setVehicleNumber(profile.vehicleNumber);
       setProfilePicture(profile.profilePicture || "");
+      setPhone(profile.phone || "");
+      setEmail(profile.email || "");
+      setBloodGroup(profile.bloodGroup || "");
     }
   }, [profile]);
+
+  const validateField = (field: string, value: string) => {
+    let result: { valid: boolean; error?: string } = { valid: true };
+    
+    switch (field) {
+      case "age":
+        result = validateAge(value);
+        break;
+      case "email":
+        result = validateEmail(value);
+        break;
+      case "vehicleNumber":
+        result = validateVehicleNumber(value);
+        break;
+      case "phone":
+        result = validatePhone(value);
+        break;
+    }
+
+    setErrors((prev) => ({
+      ...prev,
+      [field]: result.error || "",
+    }));
+
+    return result.valid;
+  };
 
   const handlePickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -51,8 +94,22 @@ export default function ProfileSetupScreen() {
   };
 
   const handleSave = async () => {
-    if (!name.trim() || !age.trim() || !vehicleName.trim() || !vehicleNumber.trim()) {
-      Alert.alert("Missing Information", "Please fill in all required fields.");
+    const ageValid = validateField("age", age);
+    const emailValid = validateField("email", email);
+    const vehicleValid = validateField("vehicleNumber", vehicleNumber);
+    const phoneValid = validateField("phone", phone);
+
+    if (!name.trim()) {
+      Alert.alert("Missing Information", "Please enter your name.");
+      return;
+    }
+    if (!vehicleName.trim()) {
+      Alert.alert("Missing Information", "Please enter your vehicle name.");
+      return;
+    }
+
+    if (!ageValid || !emailValid || !vehicleValid || !phoneValid) {
+      Alert.alert("Invalid Information", "Please fix the highlighted errors.");
       return;
     }
 
@@ -63,13 +120,51 @@ export default function ProfileSetupScreen() {
       vehicleName: vehicleName.trim(),
       vehicleNumber: vehicleNumber.trim().toUpperCase(),
       profilePicture: profilePicture || undefined,
+      phone: phone.trim() || undefined,
+      email: email.trim() || undefined,
+      bloodGroup: bloodGroup || undefined,
     };
 
     await saveProfile(newProfile);
     navigation.goBack();
   };
 
-  const isValid = name.trim() && age.trim() && vehicleName.trim() && vehicleNumber.trim();
+  const isValid =
+    name.trim() &&
+    age.trim() &&
+    vehicleName.trim() &&
+    vehicleNumber.trim() &&
+    !errors.age &&
+    !errors.email &&
+    !errors.vehicleNumber &&
+    !errors.phone;
+
+  const renderBloodGroupPicker = () => (
+    <View style={[styles.pickerContainer, { backgroundColor: theme.backgroundDefault, borderColor: theme.border }]}>
+      {BLOOD_GROUPS.map((group) => (
+        <Pressable
+          key={group}
+          style={[
+            styles.bloodGroupOption,
+            bloodGroup === group && { backgroundColor: theme.primary },
+          ]}
+          onPress={() => {
+            setBloodGroup(group);
+            setShowBloodGroupPicker(false);
+          }}
+        >
+          <ThemedText
+            style={[
+              styles.bloodGroupText,
+              bloodGroup === group && { color: "#FFFFFF" },
+            ]}
+          >
+            {group}
+          </ThemedText>
+        </Pressable>
+      ))}
+    </View>
+  );
 
   return (
     <ThemedView style={styles.container}>
@@ -125,7 +220,7 @@ export default function ProfileSetupScreen() {
 
           <View style={styles.inputGroup}>
             <ThemedText type="small" style={styles.label}>
-              Age *
+              Age * (18-90)
             </ThemedText>
             <TextInput
               style={[
@@ -133,16 +228,109 @@ export default function ProfileSetupScreen() {
                 {
                   backgroundColor: theme.backgroundDefault,
                   color: theme.text,
-                  borderColor: theme.border,
+                  borderColor: errors.age ? theme.danger : theme.border,
                 },
               ]}
               placeholder="Enter your age"
               placeholderTextColor={theme.textSecondary}
               value={age}
-              onChangeText={setAge}
+              onChangeText={(text) => {
+                setAge(text);
+                if (text) validateField("age", text);
+              }}
+              onBlur={() => validateField("age", age)}
               keyboardType="number-pad"
-              maxLength={3}
+              maxLength={2}
             />
+            {errors.age ? (
+              <ThemedText type="small" style={{ color: theme.danger, marginTop: 4 }}>
+                {errors.age}
+              </ThemedText>
+            ) : null}
+          </View>
+
+          <View style={styles.inputGroup}>
+            <ThemedText type="small" style={styles.label}>
+              Email (optional)
+            </ThemedText>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  color: theme.text,
+                  borderColor: errors.email ? theme.danger : theme.border,
+                },
+              ]}
+              placeholder="Enter your email"
+              placeholderTextColor={theme.textSecondary}
+              value={email}
+              onChangeText={(text) => {
+                setEmail(text);
+                if (text) validateField("email", text);
+              }}
+              onBlur={() => validateField("email", email)}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            {errors.email ? (
+              <ThemedText type="small" style={{ color: theme.danger, marginTop: 4 }}>
+                {errors.email}
+              </ThemedText>
+            ) : null}
+          </View>
+
+          <View style={styles.inputGroup}>
+            <ThemedText type="small" style={styles.label}>
+              Phone Number (optional)
+            </ThemedText>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  color: theme.text,
+                  borderColor: errors.phone ? theme.danger : theme.border,
+                },
+              ]}
+              placeholder="Enter your phone number"
+              placeholderTextColor={theme.textSecondary}
+              value={phone}
+              onChangeText={(text) => {
+                setPhone(text);
+                if (text) validateField("phone", text);
+              }}
+              onBlur={() => validateField("phone", phone)}
+              keyboardType="phone-pad"
+            />
+            {errors.phone ? (
+              <ThemedText type="small" style={{ color: theme.danger, marginTop: 4 }}>
+                {errors.phone}
+              </ThemedText>
+            ) : null}
+          </View>
+
+          <View style={styles.inputGroup}>
+            <ThemedText type="small" style={styles.label}>
+              Blood Group (optional)
+            </ThemedText>
+            <Pressable
+              style={[
+                styles.input,
+                styles.pickerButton,
+                {
+                  backgroundColor: theme.backgroundDefault,
+                  borderColor: theme.border,
+                },
+              ]}
+              onPress={() => setShowBloodGroupPicker(!showBloodGroupPicker)}
+            >
+              <ThemedText style={{ color: bloodGroup ? theme.text : theme.textSecondary }}>
+                {bloodGroup || "Select blood group"}
+              </ThemedText>
+              <Feather name="chevron-down" size={20} color={theme.textSecondary} />
+            </Pressable>
+            {showBloodGroupPicker ? renderBloodGroupPicker() : null}
           </View>
 
           <View style={styles.inputGroup}>
@@ -168,7 +356,7 @@ export default function ProfileSetupScreen() {
 
           <View style={styles.inputGroup}>
             <ThemedText type="small" style={styles.label}>
-              Vehicle Number *
+              Vehicle Number * (10 characters)
             </ThemedText>
             <TextInput
               style={[
@@ -176,15 +364,26 @@ export default function ProfileSetupScreen() {
                 {
                   backgroundColor: theme.backgroundDefault,
                   color: theme.text,
-                  borderColor: theme.border,
+                  borderColor: errors.vehicleNumber ? theme.danger : theme.border,
                 },
               ]}
-              placeholder="e.g., AB 12 CD 3456"
+              placeholder="e.g., AB12CD3456"
               placeholderTextColor={theme.textSecondary}
               value={vehicleNumber}
-              onChangeText={setVehicleNumber}
+              onChangeText={(text) => {
+                const cleaned = text.replace(/\s/g, "").toUpperCase();
+                setVehicleNumber(cleaned);
+                if (cleaned) validateField("vehicleNumber", cleaned);
+              }}
+              onBlur={() => validateField("vehicleNumber", vehicleNumber)}
               autoCapitalize="characters"
+              maxLength={10}
             />
+            {errors.vehicleNumber ? (
+              <ThemedText type="small" style={{ color: theme.danger, marginTop: 4 }}>
+                {errors.vehicleNumber}
+              </ThemedText>
+            ) : null}
           </View>
         </View>
 
@@ -250,6 +449,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     fontSize: 16,
     borderWidth: 1,
+  },
+  pickerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  pickerContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    marginTop: Spacing.xs,
+  },
+  bloodGroupOption: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: "rgba(0,0,0,0.05)",
+  },
+  bloodGroupText: {
+    fontWeight: "600",
   },
   saveButton: {
     marginTop: Spacing.lg,

@@ -11,6 +11,7 @@ export interface Coordinate {
 export interface DirectionsResult {
   coordinates: Coordinate[];
   distance: string;
+  distanceKm: number;
   duration: string;
   bounds: {
     northeast: Coordinate;
@@ -140,7 +141,11 @@ export async function getDirections(
 
     const coordinates = decodePolyline(polyline);
 
-    const distanceKm = route.distanceMeters ? (route.distanceMeters / 1000).toFixed(1) + " km" : "";
+    const distanceMeters = route.distanceMeters || 0;
+    const distanceKmNum = distanceMeters / 1000;
+    const distanceText = distanceKmNum >= 1 
+      ? distanceKmNum.toFixed(1) + " km" 
+      : Math.round(distanceMeters) + " m";
     const durationMatch = route.duration?.match(/(\d+)s/);
     const durationSecs = durationMatch ? parseInt(durationMatch[1]) : 0;
     const durationMins = Math.round(durationSecs / 60);
@@ -150,7 +155,8 @@ export async function getDirections(
 
     return {
       coordinates,
-      distance: distanceKm,
+      distance: distanceText,
+      distanceKm: distanceKmNum,
       duration: durationStr,
       bounds: {
         northeast: {

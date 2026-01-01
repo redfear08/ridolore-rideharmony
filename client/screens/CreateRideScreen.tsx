@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { StyleSheet, View, TextInput, Pressable, Alert, Platform } from "react-native";
+import { StyleSheet, View, TextInput, Pressable, Alert, Platform, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -17,6 +17,7 @@ import { useResponsive } from "@/hooks/useResponsive";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useProfile, useRides } from "@/hooks/useStorage";
+import { getDirections } from "@/lib/googleMaps";
 
 interface SelectedLocation {
   name: string;
@@ -40,6 +41,7 @@ export default function CreateRideScreen() {
   const [waypoints, setWaypoints] = useState<string[]>([]);
   const [newWaypoint, setNewWaypoint] = useState("");
   const [isLocating, setIsLocating] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
   const handleUseCurrentLocation = async () => {
     setIsLocating(true);
@@ -128,31 +130,59 @@ export default function CreateRideScreen() {
       return;
     }
 
-    const rideData: any = {
-      source: source.trim(),
-      destination: destination.trim(),
-      waypoints,
-      departureTime: new Date().toISOString(),
-      createdBy: profile.id,
-    };
-    
-    if (sourceLocation) {
-      rideData.sourceCoords = {
-        latitude: sourceLocation.latitude,
-        longitude: sourceLocation.longitude,
-      };
-    }
-    
-    if (destinationLocation) {
-      rideData.destinationCoords = {
-        latitude: destinationLocation.latitude,
-        longitude: destinationLocation.longitude,
-      };
-    }
-    
-    const ride = await createRide(rideData, profile);
+    setIsCreating(true);
 
-    navigation.replace("QRCodeShare", { rideId: ride.id });
+    try {
+      const rideData: any = {
+        source: source.trim(),
+        destination: destination.trim(),
+        waypoints,
+        departureTime: new Date().toISOString(),
+        createdBy: profile.id,
+      };
+      
+      if (sourceLocation) {
+        rideData.sourceCoords = {
+          latitude: sourceLocation.latitude,
+          longitude: sourceLocation.longitude,
+        };
+      }
+      
+      if (destinationLocation) {
+        rideData.destinationCoords = {
+          latitude: destinationLocation.latitude,
+          longitude: destinationLocation.longitude,
+        };
+      }
+
+      if (sourceLocation && destinationLocation) {
+        try {
+          const directions = await getDirections(
+            { latitude: sourceLocation.latitude, longitude: sourceLocation.longitude },
+            { latitude: destinationLocation.latitude, longitude: destinationLocation.longitude }
+          );
+          
+          if (directions) {
+            rideData.distanceKm = directions.distanceKm;
+            rideData.distanceText = directions.distance;
+          }
+        } catch (error) {
+          console.log("Could not fetch distance:", error);
+        }
+      }
+      
+      const ride = await createRide(rideData, profile);
+      navigation.replace("QRCodeShare", { rideId: ride.id });
+    } catch (error) {
+      console.error("Error creating ride:", error);
+      if (Platform.OS === "web") {
+        window.alert("Failed to create ride. Please try again.");
+      } else {
+        Alert.alert("Error", "Failed to create ride. Please try again.");
+      }
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const isValid = source.trim() && destination.trim();
@@ -292,8 +322,8 @@ export default function CreateRideScreen() {
           </View>
         </Card>
 
-        <Button onPress={handleCreateRide} disabled={!isValid} style={styles.createButton}>
-          Create & Share QR Code
+        <Button onPress={handleCreateRide} disabled={!isValid || isCreating} style={styles.createButton}>
+          {isCreating ? "Creating Ride..." : "Create & Share QR Code"}
         </Button>
       </KeyboardAwareScrollViewCompat>
     </ThemedView>
