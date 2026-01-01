@@ -692,25 +692,49 @@ export function subscribeToRiderLocations(
     return () => {};
   }
 
-  const locationsRef = collection(getDb_(), "rides", rideId, "locations");
+  try {
+    const locationsRef = collection(getDb_(), "rides", rideId, "locations");
 
-  return onSnapshot(locationsRef, (snapshot) => {
-    const locations: RiderLocation[] = [];
-    snapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      locations.push({
-        riderId: data.riderId,
-        riderName: data.riderName || "Rider",
-        latitude: data.latitude,
-        longitude: data.longitude,
-        heading: data.heading,
-        speed: data.speed,
-        accuracy: data.accuracy,
-        updatedAt: data.updatedAt?.toDate() || new Date(),
-      });
-    });
-    callback(locations);
-  });
+    return onSnapshot(
+      locationsRef, 
+      (snapshot) => {
+        try {
+          const locations: RiderLocation[] = [];
+          snapshot.forEach((docSnap) => {
+            try {
+              const data = docSnap.data();
+              if (data && typeof data.latitude === 'number' && typeof data.longitude === 'number') {
+                locations.push({
+                  riderId: data.riderId || docSnap.id,
+                  riderName: data.riderName || "Rider",
+                  latitude: data.latitude,
+                  longitude: data.longitude,
+                  heading: data.heading,
+                  speed: data.speed,
+                  accuracy: data.accuracy,
+                  updatedAt: data.updatedAt?.toDate() || new Date(),
+                });
+              }
+            } catch (docError) {
+              console.error("Error parsing rider location doc:", docError);
+            }
+          });
+          callback(locations);
+        } catch (snapshotError) {
+          console.error("Error processing locations snapshot:", snapshotError);
+          callback([]);
+        }
+      },
+      (error) => {
+        console.error("Firebase subscription error:", error);
+        callback([]);
+      }
+    );
+  } catch (error) {
+    console.error("Error setting up rider locations subscription:", error);
+    callback([]);
+    return () => {};
+  }
 }
 
 function parsePost(docSnap: QueryDocumentSnapshot): Post {

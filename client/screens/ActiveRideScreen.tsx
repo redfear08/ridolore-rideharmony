@@ -236,16 +236,32 @@ export default function ActiveRideScreen() {
 
   useEffect(() => {
     const rideId = route.params.rideId;
-    const unsubscribe = subscribeToRiderLocations(rideId, (locations) => {
-      const clonedLocations = locations.map((loc) => ({ ...loc }));
-      if (!areLocationsEqual(previousLocationsRef.current, clonedLocations)) {
-        previousLocationsRef.current = clonedLocations;
-        setRiderLocations(clonedLocations);
-      }
-    });
+    let unsubscribe: (() => void) | null = null;
+    
+    try {
+      unsubscribe = subscribeToRiderLocations(rideId, (locations) => {
+        try {
+          const clonedLocations = locations.map((loc) => ({ ...loc }));
+          if (!areLocationsEqual(previousLocationsRef.current, clonedLocations)) {
+            previousLocationsRef.current = clonedLocations;
+            setRiderLocations(clonedLocations);
+          }
+        } catch (error) {
+          console.error("Error processing rider locations:", error);
+        }
+      });
+    } catch (error) {
+      console.error("Error subscribing to rider locations:", error);
+    }
 
     return () => {
-      unsubscribe();
+      if (unsubscribe) {
+        try {
+          unsubscribe();
+        } catch (error) {
+          console.error("Error unsubscribing from rider locations:", error);
+        }
+      }
     };
   }, [route.params.rideId]);
 
