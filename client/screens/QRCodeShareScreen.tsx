@@ -44,7 +44,7 @@ export default function QRCodeShareScreen() {
       const joinCode = ride?.joinCode || route.params.rideId;
       const qrData = generateQRData(route.params.rideId, ride?.joinCode);
       await Share.share({
-        message: `Join my ride group on RideSync! Use code: ${joinCode}`,
+        message: `Join my ride group on Ridolore! Use code: ${joinCode}`,
         title: "Join My Ride",
       });
     } catch (error) {

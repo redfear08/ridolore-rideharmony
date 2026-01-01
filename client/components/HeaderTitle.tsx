@@ -9,7 +9,7 @@ interface HeaderTitleProps {
   title?: string;
 }
 
-export function HeaderTitle({ title = "RideSync" }: HeaderTitleProps) {
+export function HeaderTitle({ title = "Ridolore" }: HeaderTitleProps) {
   const { theme } = useTheme();
   
   return (

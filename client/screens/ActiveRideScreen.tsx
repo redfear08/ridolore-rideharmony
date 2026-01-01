@@ -433,7 +433,7 @@ export default function ActiveRideScreen() {
     try {
       const joinCode = ride?.joinCode || route.params.rideId;
       await Share.share({
-        message: `Join my ride group on RideSync! Use code: ${joinCode}\n\nOr scan the QR code in the app.`,
+        message: `Join my ride group on Ridolore! Use code: ${joinCode}\n\nOr scan the QR code in the app.`,
         title: "Join My Ride",
       });
     } catch (error) {

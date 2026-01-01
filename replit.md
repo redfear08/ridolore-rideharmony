@@ -1,7 +1,7 @@
-# RideSync - Group Ride & Live Tracking App
+# Ridolore - Group Ride & Live Tracking App
 
 ## Overview
-RideSync is a mobile application for motorcycle/vehicle riders to create and join group rides with real-time location tracking, QR code sharing, and group communication features.
+Ridolore is a mobile application for motorcycle/vehicle riders to create and join group rides with real-time location tracking, QR code sharing, and group communication features.
 
 ## Current State
 Firebase integration complete with Authentication and Firestore for cloud data persistence. Users can sign in across multiple devices with the same credentials. All data is stored in Firebase Firestore.

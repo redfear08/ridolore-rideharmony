@@ -72,7 +72,7 @@ export default function RegisterScreen() {
         <View style={styles.header}>
           <ThemedText type="h1">Create Account</ThemedText>
           <ThemedText type="body" style={{ color: theme.textSecondary, marginTop: Spacing.sm }}>
-            Join the RideSync community
+            Join the Ridolore community
           </ThemedText>
         </View>
 

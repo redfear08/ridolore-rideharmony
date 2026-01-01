@@ -37,7 +37,7 @@ export default function JoinRideScreen() {
     const joinCodeOrId = parseQRData(data);
     
     if (!joinCodeOrId) {
-      Alert.alert("Invalid Code", "Please enter a valid ride code or scan a RideSync QR code.", [
+      Alert.alert("Invalid Code", "Please enter a valid ride code or scan a Ridolore QR code.", [
         { text: "OK", onPress: () => setScanned(false) },
       ]);
       return;

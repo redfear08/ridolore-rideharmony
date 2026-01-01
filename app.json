@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "RideSync",
+    "name": "Ridolore",
     "slug": "ridolore",
-    "version": "1.0.0",
+    "version": "1.0.01",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ridesync",
@@ -12,8 +12,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.ridesync.app",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "RideSync needs your location to show your position on the map and share it with your ride group.",
-        "NSCameraUsageDescription": "RideSync needs camera access to scan QR codes to join ride groups."
+        "NSLocationWhenInUseUsageDescription": "Ridolore needs your location to show your position on the map and share it with your ride group.",
+        "NSCameraUsageDescription": "Ridolore needs camera access to scan QR codes to join ride groups."
       }
     },
     "android": {

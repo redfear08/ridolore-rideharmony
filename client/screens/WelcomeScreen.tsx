@@ -31,7 +31,7 @@ export default function WelcomeScreen() {
 
         <Animated.View entering={FadeInUp.delay(400).duration(800)} style={styles.textContainer}>
           <ThemedText type="h1" style={styles.title}>
-            RideSync
+            Ridolore
           </ThemedText>
           <ThemedText type="body" style={[styles.subtitle, { color: theme.textSecondary }]}>
             Create and join group rides with real-time tracking, chat, and SOS alerts

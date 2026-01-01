@@ -58,7 +58,7 @@ export default function MainTabNavigator() {
           name="Home"
           component={HomeScreen}
           options={{
-            headerTitle: "RideSync",
+            headerTitle: "Ridolore",
             tabBarIcon: ({ color, size }) => (
               <Feather name="home" size={size} color={color} />
             ),
