@@ -51,6 +51,18 @@
     ],
     "experiments": {
       "reactCompiler": true
+    },
+    "extra": {
+      "firebaseApiKey": "AIzaSyAgzeRYOSyZ0TIXbg4cQPBUyG7plzh24Iw",
+      "firebaseAuthDomain": "ridolore-da2cf.firebaseapp.com",
+      "firebaseProjectId": "ridolore-da2cf",
+      "firebaseStorageBucket": "ridolore-da2cf.firebasestorage.app",
+      "firebaseMessagingSenderId": "518571574194",
+      "firebaseAppId": "1:518571574194:web:59281efa85086d942d9aab",
+      "googleMapsApiKey": "AIzaSyCPItIh_u6ymUzgoW3Kip-ZSBDrQ31Wt18",
+      "eas": {
+        "projectId": "c655d7c5-d1f8-4b6f-89f5-05e5955025d4"
+      }
     }
   }
 }
