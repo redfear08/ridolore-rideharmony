@@ -1,6 +1,7 @@
 import React from "react";
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import MainTabNavigator from "@/navigation/MainTabNavigator";
+import { createNativeStackNavigator, NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { NavigatorScreenParams } from "@react-navigation/native";
+import MainTabNavigator, { MainTabParamList } from "@/navigation/MainTabNavigator";
 import CreateRideScreen from "@/screens/CreateRideScreen";
 import QRCodeShareScreen from "@/screens/QRCodeShareScreen";
 import JoinRideScreen from "@/screens/JoinRideScreen";
@@ -13,7 +14,7 @@ import PostDetailScreen from "@/screens/PostDetailScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
 export type RootStackParamList = {
-  Main: undefined;
+  Main: NavigatorScreenParams<MainTabParamList> | undefined;
   ProfileSetup: undefined;
   CreateRide: undefined;
   QRCodeShare: { rideId: string };

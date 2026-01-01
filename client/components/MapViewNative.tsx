@@ -55,7 +55,7 @@ const RiderMarkerComponent = memo(function RiderMarkerComponent({
     >
       <View style={[styles.riderMarker, { backgroundColor: color }]}>
         <ThemedText type="small" style={{ color: "#FFFFFF", fontWeight: "700" }}>
-          {rider.name.charAt(0)}
+          {(rider.name || "R").charAt(0)}
         </ThemedText>
       </View>
     </Marker>

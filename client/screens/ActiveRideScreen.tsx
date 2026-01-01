@@ -473,7 +473,7 @@ export default function ActiveRideScreen() {
   const realRiderLocations = useMemo(() => 
     riderLocations.map((loc) => ({
       id: loc.riderId,
-      name: loc.riderName,
+      name: loc.riderName || "Rider",
       latitude: loc.latitude,
       longitude: loc.longitude,
     })),

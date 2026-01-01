@@ -31,7 +31,10 @@ export default function MainTabNavigator() {
       <Tab.Navigator
         initialRouteName="Home"
         screenOptions={{
-          ...screenOptions,
+          headerTitleAlign: "center",
+          headerTransparent: screenOptions.headerTransparent,
+          headerTintColor: theme.text,
+          headerStyle: screenOptions.headerStyle,
           tabBarActiveTintColor: theme.tabIconSelected,
           tabBarInactiveTintColor: theme.tabIconDefault,
           tabBarStyle: {
