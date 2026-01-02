@@ -110,6 +110,24 @@ const RoutePolylineComponent = memo(function RoutePolylineComponent({
   );
 });
 
+function isValidRegion(region: Region | null | undefined): region is Region {
+  if (!region) return false;
+  return (
+    typeof region.latitude === 'number' &&
+    typeof region.longitude === 'number' &&
+    typeof region.latitudeDelta === 'number' &&
+    typeof region.longitudeDelta === 'number' &&
+    !isNaN(region.latitude) &&
+    !isNaN(region.longitude) &&
+    !isNaN(region.latitudeDelta) &&
+    !isNaN(region.longitudeDelta) &&
+    isFinite(region.latitude) &&
+    isFinite(region.longitude) &&
+    isFinite(region.latitudeDelta) &&
+    isFinite(region.longitudeDelta)
+  );
+}
+
 function MapViewNativeInner({
   mapRef,
   initialRegion,
@@ -126,11 +144,25 @@ function MapViewNativeInner({
     [riderLocations, currentUserId]
   );
 
+  // Validate and provide safe fallback for initialRegion
+  const safeInitialRegion: Region = useMemo(() => {
+    if (isValidRegion(initialRegion)) {
+      return initialRegion;
+    }
+    // Safe fallback to San Francisco coordinates
+    return {
+      latitude: 37.78825,
+      longitude: -122.4324,
+      latitudeDelta: 0.03,
+      longitudeDelta: 0.03,
+    };
+  }, [initialRegion]);
+
   return (
     <MapView
       ref={mapRef}
       style={StyleSheet.absoluteFill}
-      initialRegion={initialRegion}
+      initialRegion={safeInitialRegion}
       showsUserLocation={true}
       showsMyLocationButton={false}
       userInterfaceStyle={isDark ? "dark" : "light"}

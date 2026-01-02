@@ -100,10 +100,33 @@ export default function ActiveRideScreen() {
   const [sourceCoord, setSourceCoord] = useState<Coordinate | null>(null);
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
+  const [isMapReady, setIsMapReady] = useState(false);
   const hasSetupFallbackRoute = useRef(false);
   const hasFetchedFromFirebase = useRef(false);
   const lastLocationUpdate = useRef<{ lat: number; lng: number; time: number; speed: number } | null>(null);
   const previousLocationsRef = useRef<RiderLocation[]>([]);
+  
+  // Set map ready when we have a valid location (user location OR ride source coords)
+  useEffect(() => {
+    if (!isMapReady) {
+      const hasValidUserLocation = userLocation && 
+        typeof userLocation.latitude === 'number' && 
+        typeof userLocation.longitude === 'number' &&
+        !isNaN(userLocation.latitude) &&
+        !isNaN(userLocation.longitude);
+      
+      const hasValidSourceCoords = sourceCoord && 
+        typeof sourceCoord.latitude === 'number' && 
+        typeof sourceCoord.longitude === 'number' &&
+        !isNaN(sourceCoord.latitude) &&
+        !isNaN(sourceCoord.longitude);
+      
+      if (hasValidUserLocation || hasValidSourceCoords) {
+        // Small delay to ensure all state is settled before rendering map
+        setTimeout(() => setIsMapReady(true), 100);
+      }
+    }
+  }, [userLocation, sourceCoord, isMapReady]);
 
   useEffect(() => {
     const loadRide = async () => {
@@ -616,18 +639,24 @@ export default function ActiveRideScreen() {
 
   return (
     <View style={styles.container}>
-      <MapViewNative
-        mapRef={mapRef}
-        initialRegion={defaultRegion}
-        isDark={isDark}
-        userLocation={userLocation}
-        destinationCoord={safeDestinationCoord}
-        routeCoordinates={safeRouteCoordinates}
-        riderLocations={safeRiderLocations}
-        currentUserId={profile?.id || ""}
-        theme={mapTheme}
-        onRiderPress={handleRiderPress}
-      />
+      {isMapReady ? (
+        <MapViewNative
+          mapRef={mapRef}
+          initialRegion={defaultRegion}
+          isDark={isDark}
+          userLocation={userLocation}
+          destinationCoord={safeDestinationCoord}
+          routeCoordinates={safeRouteCoordinates}
+          riderLocations={safeRiderLocations}
+          currentUserId={profile?.id || ""}
+          theme={mapTheme}
+          onRiderPress={handleRiderPress}
+        />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.backgroundDefault, alignItems: 'center', justifyContent: 'center' }]}>
+          <ThemedText type="body" style={{ color: theme.textSecondary }}>Loading map...</ThemedText>
+        </View>
+      )}
 
       <View style={[styles.topControls, { paddingTop: insets.top + Spacing.sm }]}>
         <View style={[styles.headerCard, { backgroundColor: theme.backgroundRoot + "F5" }]}>
