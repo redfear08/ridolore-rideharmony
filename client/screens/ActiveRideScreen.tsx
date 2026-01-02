@@ -542,6 +542,43 @@ export default function ActiveRideScreen() {
 
   const keyExtractor = useCallback((item: Rider) => item.id, []);
 
+  // These memos must be BEFORE any conditional returns to follow Rules of Hooks
+  const safeRiderLocations = useMemo(() => 
+    (realRiderLocations || []).filter(loc => 
+      loc && 
+      typeof loc.latitude === 'number' && 
+      typeof loc.longitude === 'number' &&
+      !isNaN(loc.latitude) && 
+      !isNaN(loc.longitude)
+    ),
+    [realRiderLocations]
+  );
+
+  const safeRouteCoordinates = useMemo(() =>
+    (routeCoordinates || []).filter(coord =>
+      coord &&
+      typeof coord.latitude === 'number' &&
+      typeof coord.longitude === 'number' &&
+      !isNaN(coord.latitude) &&
+      !isNaN(coord.longitude)
+    ),
+    [routeCoordinates]
+  );
+
+  const safeDestinationCoord = useMemo(() => {
+    if (!destinationCoord) return null;
+    if (typeof destinationCoord.latitude !== 'number' || typeof destinationCoord.longitude !== 'number') return null;
+    if (isNaN(destinationCoord.latitude) || isNaN(destinationCoord.longitude)) return null;
+    return destinationCoord;
+  }, [destinationCoord]);
+
+  const defaultRegion = useMemo(() => ({
+    latitude: userLocation?.latitude || 37.78825,
+    longitude: userLocation?.longitude || -122.4324,
+    latitudeDelta: 0.03,
+    longitudeDelta: 0.03,
+  }), [userLocation?.latitude, userLocation?.longitude]);
+
   if (locationPermissionDenied) {
     return (
       <ThemedView style={styles.container}>
@@ -600,42 +637,6 @@ export default function ActiveRideScreen() {
       </ThemedView>
     );
   }
-
-  const defaultRegion = {
-    latitude: userLocation?.latitude || 37.78825,
-    longitude: userLocation?.longitude || -122.4324,
-    latitudeDelta: 0.03,
-    longitudeDelta: 0.03,
-  };
-
-  const safeRiderLocations = useMemo(() => 
-    (realRiderLocations || []).filter(loc => 
-      loc && 
-      typeof loc.latitude === 'number' && 
-      typeof loc.longitude === 'number' &&
-      !isNaN(loc.latitude) && 
-      !isNaN(loc.longitude)
-    ),
-    [realRiderLocations]
-  );
-
-  const safeRouteCoordinates = useMemo(() =>
-    (routeCoordinates || []).filter(coord =>
-      coord &&
-      typeof coord.latitude === 'number' &&
-      typeof coord.longitude === 'number' &&
-      !isNaN(coord.latitude) &&
-      !isNaN(coord.longitude)
-    ),
-    [routeCoordinates]
-  );
-
-  const safeDestinationCoord = useMemo(() => {
-    if (!destinationCoord) return null;
-    if (typeof destinationCoord.latitude !== 'number' || typeof destinationCoord.longitude !== 'number') return null;
-    if (isNaN(destinationCoord.latitude) || isNaN(destinationCoord.longitude)) return null;
-    return destinationCoord;
-  }, [destinationCoord]);
 
   return (
     <View style={styles.container}>

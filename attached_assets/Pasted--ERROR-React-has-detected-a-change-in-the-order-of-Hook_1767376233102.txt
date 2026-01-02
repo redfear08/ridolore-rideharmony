@@ -1,0 +1,65 @@
+ ERROR  React has detected a change in the order of Hooks called by %s. This will lead to bugs and errors if not fixed. For more information, read the Rules of Hooks: https://react.dev/link/rules-of-hooks
+
+   Previous render            Next render
+   ------------------------------------------------------
+%s   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ ActiveRideScreen 1. useContext                 useContext
+2. useSyncExternalStore       useSyncExternalStore
+3. useContext                 useContext
+4. useContext                 useContext
+5. useContext                 useContext
+6. useContext                 useContext
+7. useState                   useState
+8. useState                   useState
+9. useEffect                  useEffect
+10. useCallback               useCallback
+11. useCallback               useCallback
+12. useCallback               useCallback
+13. useCallback               useCallback
+14. useCallback               useCallback
+15. useCallback               useCallback
+16. useCallback               useCallback
+17. useContext                useContext
+18. useState                  useState
+19. useState                  useState
+20. useEffect                 useEffect
+21. useRef                    useRef
+22. useState                  useState
+23. useState                  useState
+24. useState                  useState
+25. useState                  useState
+26. useState                  useState
+27. useState                  useState
+28. useState                  useState
+29. useState                  useState
+30. useState                  useState
+31. useState                  useState
+32. useState                  useState
+33. useRef                    useRef
+34. useRef                    useRef
+35. useRef                    useRef
+36. useRef                    useRef
+37. useEffect                 useEffect
+38. useEffect                 useEffect
+39. useEffect                 useEffect
+40. useEffect                 useEffect
+41. useEffect                 useEffect
+42. useRef                    useRef
+43. useEffect                 useEffect
+44. useCallback               useCallback
+45. useCallback               useCallback
+46. useCallback               useCallback
+47. useCallback               useCallback
+48. useCallback               useCallback
+49. useCallback               useCallback
+50. useCallback               useCallback
+51. useCallback               useCallback
+52. useCallback               useCallback
+53. useMemo                   useMemo
+54. useMemo                   useMemo
+55. useMemo                   useMemo
+56. useCallback               useCallback
+57. useCallback               useCallback
+58. useCallback               useCallback
+59. undefined                 useMemo
+ ERROR  [Error: Rendered more hooks than during the previous render.]
