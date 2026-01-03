@@ -502,6 +502,15 @@ export async function deleteRide(rideId: string, userId: string): Promise<void> 
     throw new Error("Firebase is not configured. Please add Firebase credentials.");
   }
   
+  const currentUser = auth?.currentUser;
+  if (!currentUser) {
+    throw new Error("You must be logged in to delete a ride");
+  }
+  
+  if (currentUser.uid !== userId) {
+    throw new Error("Authentication mismatch - please log out and log back in");
+  }
+  
   const ride = await getRide(rideId);
   if (!ride) throw new Error("Ride not found");
   
@@ -509,18 +518,26 @@ export async function deleteRide(rideId: string, userId: string): Promise<void> 
     throw new Error("Only the ride creator can delete this ride");
   }
   
-  const messagesQuery = query(collection(getDb_(), "messages"), where("rideId", "==", rideId));
-  const messagesSnapshot = await getDocs(messagesQuery);
-  const messageDeletePromises = messagesSnapshot.docs.map((docSnap) => 
-    deleteDoc(doc(getDb_(), "messages", docSnap.id))
-  );
-  await Promise.all(messageDeletePromises);
+  try {
+    const messagesQuery = query(collection(getDb_(), "messages"), where("rideId", "==", rideId));
+    const messagesSnapshot = await getDocs(messagesQuery);
+    const messageDeletePromises = messagesSnapshot.docs.map((docSnap) => 
+      deleteDoc(doc(getDb_(), "messages", docSnap.id))
+    );
+    await Promise.all(messageDeletePromises);
+  } catch (e) {
+    console.log("Could not delete messages:", e);
+  }
   
-  const locationsSnapshot = await getDocs(collection(getDb_(), "rides", rideId, "locations"));
-  const locationDeletePromises = locationsSnapshot.docs.map((docSnap) =>
-    deleteDoc(doc(getDb_(), "rides", rideId, "locations", docSnap.id))
-  );
-  await Promise.all(locationDeletePromises);
+  try {
+    const locationsSnapshot = await getDocs(collection(getDb_(), "rides", rideId, "locations"));
+    const locationDeletePromises = locationsSnapshot.docs.map((docSnap) =>
+      deleteDoc(doc(getDb_(), "rides", rideId, "locations", docSnap.id))
+    );
+    await Promise.all(locationDeletePromises);
+  } catch (e) {
+    console.log("Could not delete locations:", e);
+  }
   
   await deleteDoc(doc(getDb_(), "rides", rideId));
 }

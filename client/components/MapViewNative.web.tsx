@@ -33,6 +33,9 @@ interface MapViewNativeProps {
     riderMarker: string;
   };
   onRiderPress: (rider: RiderLocation) => void;
+  enable3D?: boolean;
+  showTraffic?: boolean;
+  mapType?: "standard" | "satellite" | "hybrid" | "terrain";
 }
 
 export function MapViewNative(_props: MapViewNativeProps) {

@@ -10,12 +10,19 @@ Firebase integration complete with Authentication and Firestore for cloud data p
 
 **Real-Time Location Tracking:** Live GPS tracking implemented with high-precision (BestForNavigation accuracy). Each rider's location is published to Firebase subcollection `rides/{rideId}/locations/{riderId}` and streamed to all riders in real-time. Location updates are debounced (5m distance or 5s time threshold) to balance accuracy with battery/bandwidth usage.
 
-**Live Ride Stats (v1.0.05):**
+**Live Ride Stats (v1.0.06):**
 - **Real-time speed display**: Current rider speed shown in km/h
 - **Distance-to-destination countdown**: Shows remaining distance to destination that updates as you ride
 - **Distance covered tracking**: Tracks and accumulates distance traveled during the ride, saved to user profile
 - **3D map view**: Camera tilts to 45° pitch for immersive navigation experience
 - **Dynamic route display**: Route polyline only shows from current position to destination (not from original source)
+
+**Google Maps Features (v1.0.06):**
+- **Traffic layer**: Real-time traffic overlay showing congestion (toggleable)
+- **Night mode styling**: Custom dark map styling for better visibility at night
+- **Map type selection**: Switch between Standard, Satellite, Hybrid, and Terrain views
+- **Indoor maps**: Building floor plans where available
+- **Map settings panel**: Quick access to toggle traffic and change map type
 
 **Social Feed:** Instagram-style social media feed for registered riders. Users can post vehicle-related content (photos, ride announcements), like posts, and comment. Data stored in Firebase `posts` collection with `posts/{postId}/likes` and `posts/{postId}/comments` subcollections. Real-time updates via Firebase onSnapshot.
 
@@ -118,6 +125,20 @@ The app is optimized to handle 50+ riders without lag:
 - **Memoized components**: RiderItem, MessageItem are memoized to prevent re-renders
 - **Optimized Firebase listeners**: Single subscription per ride with cleanup on unmount
 
+## Firebase Security Notes
+The delete ride feature requires Firebase Firestore security rules that allow authenticated users who are the ride creator to delete the ride document. Ensure the following rule is set in Firebase Console:
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /rides/{rideId} {
+      allow delete: if request.auth != null && request.auth.uid == resource.data.creatorId;
+    }
+  }
+}
+```
+
 ## Next Phase Features
 - Push notifications for SOS alerts
 - Ride search and filters
@@ -126,3 +147,6 @@ The app is optimized to handle 50+ riders without lag:
 - Video posts in social feed
 - User follow/following system
 - Feed filtering by post type
+- Turn-by-turn voice navigation (requires development build)
+- Speed limit display (requires third-party data)
+- Offline maps (requires development build)

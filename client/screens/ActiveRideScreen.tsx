@@ -13,6 +13,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useRides, useProfile, Rider, Ride } from "@/hooks/useStorage";
+import { useAuth } from "@/contexts/AuthContext";
 import { getDirections } from "@/lib/googleMaps";
 import { 
   updateRiderLocation, 
@@ -114,6 +115,7 @@ export default function ActiveRideScreen() {
   const route = useRoute<ActiveRideRouteProp>();
   const { rides, getRide, fetchRideById, updateRide } = useRides();
   const { profile } = useProfile();
+  const { refreshProfile } = useAuth();
   const mapRef = useRef<any>(null);
   
   const [ride, setRide] = useState<Ride | undefined>(undefined);
@@ -130,6 +132,9 @@ export default function ActiveRideScreen() {
   const [currentSpeed, setCurrentSpeed] = useState<number | null>(null);
   const [distanceCovered, setDistanceCovered] = useState(0);
   const [distanceRemaining, setDistanceRemaining] = useState<number | null>(null);
+  const [showTraffic, setShowTraffic] = useState(true);
+  const [mapType, setMapType] = useState<"standard" | "satellite" | "hybrid" | "terrain">("standard");
+  const [showMapSettings, setShowMapSettings] = useState(false);
   const hasSetupFallbackRoute = useRef(false);
   const hasFetchedFromFirebase = useRef(false);
   const lastLocationUpdate = useRef<{ lat: number; lng: number; time: number; speed: number } | null>(null);
@@ -438,6 +443,7 @@ export default function ActiveRideScreen() {
             await updateUserProfile(profile.id, {
               totalDistanceKm: distanceCoveredRef.current
             } as any);
+            await refreshProfile();
           } catch (e) {
             console.log("Could not update profile distance:", e);
           }
@@ -473,7 +479,7 @@ export default function ActiveRideScreen() {
         ]
       );
     }
-  }, [ride, updateRide, navigation]);
+  }, [ride, updateRide, navigation, profile?.id, refreshProfile]);
 
   const handleLeaveRide = useCallback(async () => {
     const doLeaveRide = async () => {
@@ -483,6 +489,7 @@ export default function ActiveRideScreen() {
             await updateUserProfile(profile.id, {
               totalDistanceKm: distanceCoveredRef.current
             } as any);
+            await refreshProfile();
           } catch (e) {
             console.log("Could not update profile distance:", e);
           }
@@ -515,7 +522,7 @@ export default function ActiveRideScreen() {
         ]
       );
     }
-  }, [ride, profile?.id, navigation]);
+  }, [ride, profile?.id, navigation, refreshProfile]);
 
   const handleSOS = useCallback(() => {
     const doSOS = () => {
@@ -734,6 +741,8 @@ export default function ActiveRideScreen() {
           currentUserId={profile?.id || ""}
           theme={mapTheme}
           onRiderPress={handleRiderPress}
+          showTraffic={showTraffic}
+          mapType={mapType}
         />
       ) : (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.backgroundDefault, alignItems: 'center', justifyContent: 'center' }]}>
@@ -857,19 +866,70 @@ export default function ActiveRideScreen() {
       </View>
 
       {Platform.OS !== "web" ? (
-        <Pressable
-          style={({ pressed }) => [
-            styles.centerButton,
-            { 
-              backgroundColor: theme.backgroundRoot,
-              bottom: insets.bottom + Spacing.xl,
-              opacity: pressed ? 0.8 : 1,
-            },
-          ]}
-          onPress={handleCenterMap}
-        >
-          <Feather name="navigation" size={24} color={theme.primary} />
-        </Pressable>
+        <>
+          <Pressable
+            style={({ pressed }) => [
+              styles.centerButton,
+              { 
+                backgroundColor: theme.backgroundRoot,
+                bottom: insets.bottom + Spacing.xl,
+                opacity: pressed ? 0.8 : 1,
+              },
+            ]}
+            onPress={handleCenterMap}
+          >
+            <Feather name="navigation" size={24} color={theme.primary} />
+          </Pressable>
+          
+          <Pressable
+            style={({ pressed }) => [
+              styles.mapSettingsButton,
+              { 
+                backgroundColor: theme.backgroundRoot,
+                bottom: insets.bottom + Spacing.xl + 60,
+                opacity: pressed ? 0.8 : 1,
+              },
+            ]}
+            onPress={() => setShowMapSettings(!showMapSettings)}
+          >
+            <Feather name="layers" size={24} color={theme.text} />
+          </Pressable>
+          
+          {showMapSettings ? (
+            <View style={[styles.mapSettingsPanel, { backgroundColor: theme.backgroundRoot, bottom: insets.bottom + Spacing.xl + 120 }]}>
+              <ThemedText type="small" style={{ fontWeight: "700", marginBottom: Spacing.sm }}>Map Settings</ThemedText>
+              
+              <Pressable
+                style={[styles.settingRow, { borderBottomColor: theme.border }]}
+                onPress={() => setShowTraffic(!showTraffic)}
+              >
+                <ThemedText type="small">Traffic</ThemedText>
+                <View style={[styles.toggle, { backgroundColor: showTraffic ? theme.accent : theme.backgroundSecondary }]}>
+                  <View style={[styles.toggleKnob, { left: showTraffic ? 18 : 2 }]} />
+                </View>
+              </Pressable>
+              
+              <View style={styles.mapTypeRow}>
+                {(["standard", "satellite", "hybrid", "terrain"] as const).map((type) => (
+                  <Pressable
+                    key={type}
+                    style={[
+                      styles.mapTypeButton,
+                      { 
+                        backgroundColor: mapType === type ? theme.primary : theme.backgroundSecondary,
+                      },
+                    ]}
+                    onPress={() => setMapType(type)}
+                  >
+                    <ThemedText type="small" style={{ color: mapType === type ? "#FFFFFF" : theme.text, fontSize: 10 }}>
+                      {type.charAt(0).toUpperCase() + type.slice(1, 3)}
+                    </ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : null}
+        </>
       ) : null}
     </View>
   );
@@ -996,5 +1056,58 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.xl,
     borderRadius: BorderRadius.md,
+  },
+  mapSettingsButton: {
+    position: "absolute",
+    right: Spacing.lg,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    ...Shadows.card,
+  },
+  mapSettingsPanel: {
+    position: "absolute",
+    right: Spacing.lg,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    ...Shadows.card,
+    minWidth: 150,
+  },
+  settingRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginBottom: Spacing.sm,
+  },
+  toggle: {
+    width: 36,
+    height: 20,
+    borderRadius: 10,
+    padding: 2,
+    position: "relative",
+  },
+  toggleKnob: {
+    position: "absolute",
+    top: 2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+  },
+  mapTypeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: Spacing.xs,
+  },
+  mapTypeButton: {
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    minWidth: 32,
+    alignItems: "center",
   },
 });
