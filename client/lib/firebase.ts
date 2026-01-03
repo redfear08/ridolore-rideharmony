@@ -497,6 +497,34 @@ export async function leaveRide(rideId: string, riderId: string): Promise<void> 
   await updateRide(rideId, { riders: updatedRiders, riderIds: updatedRiderIds });
 }
 
+export async function deleteRide(rideId: string, userId: string): Promise<void> {
+  if (!isFirebaseConfigured) {
+    throw new Error("Firebase is not configured. Please add Firebase credentials.");
+  }
+  
+  const ride = await getRide(rideId);
+  if (!ride) throw new Error("Ride not found");
+  
+  if (ride.creatorId !== userId) {
+    throw new Error("Only the ride creator can delete this ride");
+  }
+  
+  const messagesQuery = query(collection(getDb_(), "messages"), where("rideId", "==", rideId));
+  const messagesSnapshot = await getDocs(messagesQuery);
+  const messageDeletePromises = messagesSnapshot.docs.map((docSnap) => 
+    deleteDoc(doc(getDb_(), "messages", docSnap.id))
+  );
+  await Promise.all(messageDeletePromises);
+  
+  const locationsSnapshot = await getDocs(collection(getDb_(), "rides", rideId, "locations"));
+  const locationDeletePromises = locationsSnapshot.docs.map((docSnap) =>
+    deleteDoc(doc(getDb_(), "rides", rideId, "locations", docSnap.id))
+  );
+  await Promise.all(locationDeletePromises);
+  
+  await deleteDoc(doc(getDb_(), "rides", rideId));
+}
+
 export async function sendMessage(rideId: string, senderId: string, senderName: string, text: string): Promise<string> {
   if (!isFirebaseConfigured) {
     throw new Error("Firebase is not configured. Please add Firebase credentials.");

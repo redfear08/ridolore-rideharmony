@@ -1,11 +1,12 @@
 import React, { useState, useCallback } from "react";
-import { StyleSheet, View, FlatList, RefreshControl } from "react-native";
+import { StyleSheet, View, FlatList, RefreshControl, Alert, Platform, ActionSheetIOS } from "react-native";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import * as Haptics from "expo-haptics";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -14,6 +15,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useRides, Ride } from "@/hooks/useStorage";
+import { useProfile } from "@/hooks/useStorage";
 
 export default function MyRidesScreen() {
   const headerHeight = useHeaderHeight();
@@ -21,7 +23,8 @@ export default function MyRidesScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { rides, refreshRides } = useRides();
+  const { rides, refreshRides, deleteRide } = useRides();
+  const { profile } = useProfile();
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = useCallback(async () => {
@@ -29,6 +32,113 @@ export default function MyRidesScreen() {
     await refreshRides();
     setRefreshing(false);
   }, [refreshRides]);
+
+  const handleLongPress = useCallback((item: Ride) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    const isCreator = profile?.id === item.creatorId;
+    
+    const showRideInfo = () => {
+      const ridersCount = item.riders?.length || 1;
+      const waypointsCount = item.waypoints?.length || 0;
+      const message = `From: ${item.source}\nTo: ${item.destination}\n\nRiders: ${ridersCount}\nStops: ${waypointsCount}\nStatus: ${item.status === "active" ? "In Progress" : item.status === "waiting" ? "Waiting" : "Completed"}\nCreated: ${new Date(item.createdAt).toLocaleDateString()}${item.distanceText ? `\nDistance: ${item.distanceText}` : ""}${item.estimatedDuration ? `\nETA: ${item.estimatedDuration}` : ""}`;
+      
+      if (Platform.OS === "web") {
+        window.alert(message);
+      } else {
+        Alert.alert("Ride Details", message, [{ text: "OK" }]);
+      }
+    };
+
+    const confirmDelete = () => {
+      if (!isCreator) {
+        const errorMsg = "Only the ride creator can delete this ride";
+        if (Platform.OS === "web") {
+          window.alert(errorMsg);
+        } else {
+          Alert.alert("Error", errorMsg);
+        }
+        return;
+      }
+      
+      const doDelete = async () => {
+        try {
+          await deleteRide(item.id);
+          if (Platform.OS !== "web") {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }
+        } catch (error: any) {
+          const errorMessage = error?.message || "Failed to delete ride";
+          if (Platform.OS === "web") {
+            window.alert(errorMessage);
+          } else {
+            Alert.alert("Error", errorMessage);
+          }
+        }
+      };
+
+      if (Platform.OS === "web") {
+        if (window.confirm("Are you sure you want to delete this ride? This action cannot be undone.")) {
+          doDelete();
+        }
+      } else {
+        Alert.alert(
+          "Delete Ride",
+          "Are you sure you want to delete this ride? This action cannot be undone.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Delete", style: "destructive", onPress: doDelete }
+          ]
+        );
+      }
+    };
+
+    if (Platform.OS === "ios") {
+      const options = isCreator 
+        ? ["Cancel", "View Details", "Delete Ride"]
+        : ["Cancel", "View Details"];
+      const destructiveIndex = isCreator ? 2 : undefined;
+      
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex: 0,
+          destructiveButtonIndex: destructiveIndex,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 1) {
+            showRideInfo();
+          } else if (buttonIndex === 2 && isCreator) {
+            confirmDelete();
+          }
+        }
+      );
+    } else if (Platform.OS === "web") {
+      if (isCreator) {
+        const action = window.prompt("Enter action:\n1 - View Details\n2 - Delete Ride\n\nType 1 or 2:");
+        if (action === "1") {
+          showRideInfo();
+        } else if (action === "2") {
+          confirmDelete();
+        }
+      } else {
+        showRideInfo();
+      }
+    } else {
+      const buttons: any[] = [
+        { text: "Cancel", style: "cancel" },
+        { text: "View Details", onPress: showRideInfo },
+      ];
+      
+      if (isCreator) {
+        buttons.push({ text: "Delete Ride", style: "destructive", onPress: confirmDelete });
+      }
+      
+      Alert.alert("Ride Options", "Choose an action", buttons);
+    }
+  }, [profile?.id, deleteRide]);
 
   const renderRideItem = ({ item }: { item: Ride }) => {
     const statusColor =
@@ -53,6 +163,7 @@ export default function MyRidesScreen() {
             navigation.navigate("ActiveRide", { rideId: item.id });
           }
         }}
+        onLongPress={() => handleLongPress(item)}
       >
         <View style={styles.rideHeader}>
           <View style={[styles.statusBadge, { backgroundColor: statusColor + "20" }]}>

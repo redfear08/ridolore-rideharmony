@@ -10,6 +10,7 @@ import {
   updateRide as firebaseUpdateRide,
   joinRide as firebaseJoinRide,
   leaveRide as firebaseLeaveRide,
+  deleteRide as firebaseDeleteRide,
   sendMessage,
   getRideMessages,
   subscribeToRide,
@@ -431,12 +432,20 @@ export function useRides() {
     setRides([]);
   };
 
+  const deleteRide = useCallback(async (rideId: string) => {
+    if (!user?.id) throw new Error("Must be logged in to delete ride");
+    
+    await firebaseDeleteRide(rideId, user.id);
+    setRides((prev) => prev.filter((ride) => ride.id !== rideId));
+  }, [user?.id]);
+
   return {
     rides,
     isLoading,
     createRide,
     updateRide,
     joinRide,
+    deleteRide,
     addMessage,
     getRide,
     fetchRideById,

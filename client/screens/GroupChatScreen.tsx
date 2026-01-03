@@ -20,6 +20,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useRides, useProfile, Message, Rider } from "@/hooks/useStorage";
+import { subscribeToMessages } from "@/lib/firebase";
 
 type GroupChatRouteProp = RouteProp<RootStackParamList, "GroupChat">;
 
@@ -119,6 +120,43 @@ export default function GroupChatScreen() {
     setRide(updatedRide);
   }, [route.params.rideId, getRide]);
 
+  const [realtimeMessages, setRealtimeMessages] = useState<Message[]>([]);
+  
+  useEffect(() => {
+    const rideId = route.params.rideId;
+    
+    const unsubscribe = subscribeToMessages(rideId, (firebaseMessages) => {
+      const localMessages: Message[] = firebaseMessages.map((msg) => {
+        let timestampStr: string;
+        if (msg.timestamp instanceof Date) {
+          timestampStr = msg.timestamp.toISOString();
+        } else if (msg.timestamp && typeof msg.timestamp === "object" && "toDate" in msg.timestamp) {
+          timestampStr = (msg.timestamp as any).toDate().toISOString();
+        } else if (typeof msg.timestamp === "string") {
+          timestampStr = msg.timestamp;
+        } else {
+          timestampStr = new Date().toISOString();
+        }
+        
+        return {
+          id: msg.id,
+          senderId: msg.senderId,
+          senderName: msg.senderName,
+          text: msg.text,
+          timestamp: timestampStr,
+        };
+      });
+      
+      localMessages.sort((a, b) => 
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+      
+      setRealtimeMessages(localMessages);
+    });
+    
+    return () => unsubscribe();
+  }, [route.params.rideId]);
+
   const handleSend = useCallback(async () => {
     if (!messageText.trim() || !profile || !ride) return;
 
@@ -141,7 +179,12 @@ export default function GroupChatScreen() {
   }, [messageText, profile, ride, addMessage, refreshRides, getRide, route.params.rideId]);
 
   const riders = useMemo(() => ride?.riders || [], [ride?.riders]);
-  const messages = useMemo(() => ride?.messages || [], [ride?.messages]);
+  const messages = useMemo(() => {
+    if (realtimeMessages.length > 0) {
+      return realtimeMessages;
+    }
+    return ride?.messages || [];
+  }, [ride?.messages, realtimeMessages]);
 
   const ridersMap = useMemo(() => {
     const map = new Map<string, Rider>();

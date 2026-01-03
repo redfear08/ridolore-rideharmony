@@ -18,6 +18,7 @@ interface CardProps {
   description?: string;
   children?: React.ReactNode;
   onPress?: () => void;
+  onLongPress?: () => void;
   style?: ViewStyle;
 }
 
@@ -53,6 +54,7 @@ export function Card({
   description,
   children,
   onPress,
+  onLongPress,
   style,
 }: CardProps) {
   const { theme } = useTheme();
@@ -77,8 +79,10 @@ export function Card({
   return (
     <AnimatedPressable
       onPress={onPress}
+      onLongPress={onLongPress}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
+      delayLongPress={500}
       style={[
         styles.card,
         {

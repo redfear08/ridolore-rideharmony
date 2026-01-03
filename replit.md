@@ -84,15 +84,18 @@ client/
 3. **QR Code Sharing**: Generate and share ride invite codes (works on iOS and Android using react-native-qrcode-svg)
 4. **Join Ride**: Scan QR or enter code manually
 5. **Live Map**: Real-time rider positions with high-precision GPS tracking via Firebase
-6. **Group Chat**: In-ride messaging with haptic feedback
+6. **Group Chat**: In-ride messaging with haptic feedback and real-time message sync via Firebase onSnapshot
 7. **SOS Button**: Emergency alert to group
-8. **Captain Controls**: Only ride creator can end the ride; other riders can only leave
+8. **Captain Controls**: Only ride creator can end or delete the ride; other riders can only leave
 9. **Share During Ride**: All participants can share QR code to invite more riders during active ride
 10. **Social Feed**: Instagram-style feed where riders can post vehicle-related content
     - Post photos with captions
     - Like and comment on posts
     - Ride announcements
     - Real-time feed updates via Firebase
+11. **Long-Press Ride Menu**: Tap and hold on any ride in My Rides to:
+    - View ride details (source, destination, riders, stops, distance, ETA)
+    - Delete ride (creator only) with confirmation
 
 ## Design System
 - Primary: #2563EB (Blue)
