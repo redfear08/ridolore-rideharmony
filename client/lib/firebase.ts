@@ -113,6 +113,7 @@ export interface UserProfile {
   photoUri?: string;
   phone?: string;
   bloodGroup?: string;
+  totalDistanceKm?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -232,6 +233,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
       photoUri: data.photoUri,
       phone: data.phone,
       bloodGroup: data.bloodGroup,
+      totalDistanceKm: data.totalDistanceKm || 0,
       createdAt: data.createdAt?.toDate() || new Date(),
       updatedAt: data.updatedAt?.toDate() || new Date(),
     };
@@ -249,7 +251,11 @@ export async function updateUserProfile(userId: string, updates: Partial<UserPro
   
   Object.entries(updates).forEach(([key, value]) => {
     if (value !== undefined) {
-      cleanUpdates[key] = value;
+      if (key === "totalDistanceKm" && typeof value === "number") {
+        cleanUpdates[key] = increment(value);
+      } else {
+        cleanUpdates[key] = value;
+      }
     }
   });
   

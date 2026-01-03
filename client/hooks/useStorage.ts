@@ -30,6 +30,7 @@ export interface UserProfile {
   email?: string;
   phone?: string;
   bloodGroup?: string;
+  totalDistanceKm?: number;
 }
 
 export const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"] as const;
@@ -130,6 +131,7 @@ function mapFirebaseProfileToLocal(fbProfile: FirebaseUserProfile): UserProfile 
     email: fbProfile.email,
     phone: fbProfile.phone,
     bloodGroup: fbProfile.bloodGroup,
+    totalDistanceKm: fbProfile.totalDistanceKm || 0,
   };
 }
 

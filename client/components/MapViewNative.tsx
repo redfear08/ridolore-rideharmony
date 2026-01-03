@@ -1,6 +1,6 @@
-import React, { useMemo, memo } from "react";
-import { StyleSheet, View } from "react-native";
-import MapView, { Marker, Polyline, Region } from "react-native-maps";
+import React, { useMemo, memo, useEffect, useRef } from "react";
+import { StyleSheet, View, Platform } from "react-native";
+import MapView, { Marker, Polyline, Region, Camera } from "react-native-maps";
 import { Feather } from "@expo/vector-icons";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -33,6 +33,23 @@ interface MapViewNativeProps {
     riderMarker: string;
   };
   onRiderPress: (rider: RiderLocation) => void;
+  enable3D?: boolean;
+}
+
+function findNearestPointIndex(coords: Coordinate[], userLoc: Coordinate): number {
+  let minDist = Infinity;
+  let nearestIndex = 0;
+  
+  for (let i = 0; i < coords.length; i++) {
+    const dist = Math.pow(coords[i].latitude - userLoc.latitude, 2) + 
+                 Math.pow(coords[i].longitude - userLoc.longitude, 2);
+    if (dist < minDist) {
+      minDist = dist;
+      nearestIndex = i;
+    }
+  }
+  
+  return nearestIndex;
 }
 
 interface RiderMarkerProps {
@@ -132,24 +149,26 @@ function MapViewNativeInner({
   mapRef,
   initialRegion,
   isDark,
+  userLocation,
   destinationCoord,
   routeCoordinates,
   riderLocations,
   currentUserId,
   theme,
   onRiderPress,
+  enable3D = true,
 }: MapViewNativeProps) {
+  const has3DSetup = useRef(false);
+  
   const otherRiders = useMemo(() => 
     riderLocations.filter((r) => r.id !== currentUserId),
     [riderLocations, currentUserId]
   );
 
-  // Validate and provide safe fallback for initialRegion
   const safeInitialRegion: Region = useMemo(() => {
     if (isValidRegion(initialRegion)) {
       return initialRegion;
     }
-    // Safe fallback to San Francisco coordinates
     return {
       latitude: 37.78825,
       longitude: -122.4324,
@@ -157,6 +176,44 @@ function MapViewNativeInner({
       longitudeDelta: 0.03,
     };
   }, [initialRegion]);
+
+  const trimmedRoute = useMemo(() => {
+    if (!userLocation || routeCoordinates.length < 2) {
+      return routeCoordinates;
+    }
+    
+    const nearestIndex = findNearestPointIndex(routeCoordinates, userLocation);
+    const routeFromCurrentPosition = routeCoordinates.slice(nearestIndex);
+    
+    if (routeFromCurrentPosition.length > 0) {
+      return [userLocation, ...routeFromCurrentPosition];
+    }
+    
+    return routeCoordinates;
+  }, [routeCoordinates, userLocation]);
+
+  useEffect(() => {
+    if (enable3D && mapRef.current && userLocation && Platform.OS !== "web" && !has3DSetup.current) {
+      has3DSetup.current = true;
+      setTimeout(() => {
+        try {
+          const camera: Camera = {
+            center: {
+              latitude: userLocation.latitude,
+              longitude: userLocation.longitude,
+            },
+            pitch: 45,
+            heading: 0,
+            altitude: 1000,
+            zoom: 16,
+          };
+          mapRef.current?.animateCamera(camera, { duration: 1000 });
+        } catch (e) {
+          console.log("Camera animation not supported:", e);
+        }
+      }, 1500);
+    }
+  }, [enable3D, userLocation, mapRef]);
 
   return (
     <MapView
@@ -169,6 +226,9 @@ function MapViewNativeInner({
       showsCompass={true}
       showsScale={true}
       moveOnMarkerPress={false}
+      pitchEnabled={true}
+      rotateEnabled={true}
+      showsBuildings={true}
     >
       {destinationCoord ? (
         <DestinationMarkerComponent 
@@ -187,7 +247,7 @@ function MapViewNativeInner({
       ))}
 
       <RoutePolylineComponent 
-        coordinates={routeCoordinates} 
+        coordinates={trimmedRoute} 
         color={theme.primary} 
       />
     </MapView>

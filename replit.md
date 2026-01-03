@@ -10,6 +10,13 @@ Firebase integration complete with Authentication and Firestore for cloud data p
 
 **Real-Time Location Tracking:** Live GPS tracking implemented with high-precision (BestForNavigation accuracy). Each rider's location is published to Firebase subcollection `rides/{rideId}/locations/{riderId}` and streamed to all riders in real-time. Location updates are debounced (5m distance or 5s time threshold) to balance accuracy with battery/bandwidth usage.
 
+**Live Ride Stats (v1.0.05):**
+- **Real-time speed display**: Current rider speed shown in km/h
+- **Distance-to-destination countdown**: Shows remaining distance to destination that updates as you ride
+- **Distance covered tracking**: Tracks and accumulates distance traveled during the ride, saved to user profile
+- **3D map view**: Camera tilts to 45° pitch for immersive navigation experience
+- **Dynamic route display**: Route polyline only shows from current position to destination (not from original source)
+
 **Social Feed:** Instagram-style social media feed for registered riders. Users can post vehicle-related content (photos, ride announcements), like posts, and comment. Data stored in Firebase `posts` collection with `posts/{postId}/likes` and `posts/{postId}/comments` subcollections. Real-time updates via Firebase onSnapshot.
 
 ## Tech Stack

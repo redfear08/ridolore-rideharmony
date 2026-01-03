@@ -18,8 +18,34 @@ import {
   updateRiderLocation, 
   subscribeToRiderLocations,
   leaveRide,
-  RiderLocation 
+  RiderLocation,
+  updateUserProfile
 } from "@/lib/firebase";
+
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function formatDistance(km: number): string {
+  if (km < 1) {
+    return `${Math.round(km * 1000)} m`;
+  }
+  return `${km.toFixed(1)} km`;
+}
+
+function formatSpeed(mps: number | null): string {
+  if (mps === null || mps < 0) return "0 km/h";
+  const kmh = mps * 3.6;
+  return `${Math.round(kmh)} km/h`;
+}
 
 type ActiveRideRouteProp = RouteProp<RootStackParamList, "ActiveRide">;
 
@@ -101,10 +127,15 @@ export default function ActiveRideScreen() {
   const [isLoadingRoute, setIsLoadingRoute] = useState(false);
   const [locationPermissionDenied, setLocationPermissionDenied] = useState(false);
   const [isMapReady, setIsMapReady] = useState(false);
+  const [currentSpeed, setCurrentSpeed] = useState<number | null>(null);
+  const [distanceCovered, setDistanceCovered] = useState(0);
+  const [distanceRemaining, setDistanceRemaining] = useState<number | null>(null);
   const hasSetupFallbackRoute = useRef(false);
   const hasFetchedFromFirebase = useRef(false);
   const lastLocationUpdate = useRef<{ lat: number; lng: number; time: number; speed: number } | null>(null);
   const previousLocationsRef = useRef<RiderLocation[]>([]);
+  const distanceCoveredRef = useRef(0);
+  const lastPositionForDistance = useRef<{ lat: number; lng: number } | null>(null);
   
   // Set map ready when we have a valid location (user location OR ride source coords)
   useEffect(() => {
@@ -234,9 +265,9 @@ export default function ActiveRideScreen() {
 
       locationSubscription = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.High,
+          accuracy: Location.Accuracy.BestForNavigation,
           distanceInterval: 5,
-          timeInterval: 3000,
+          timeInterval: 2000,
           mayShowUserSettingsDialog: true,
         },
         (loc) => {
@@ -245,6 +276,22 @@ export default function ActiveRideScreen() {
             longitude: loc.coords.longitude,
           };
           setUserLocation(newLocation);
+          setCurrentSpeed(loc.coords.speed);
+          
+          if (lastPositionForDistance.current) {
+            const dist = calculateDistance(
+              lastPositionForDistance.current.lat,
+              lastPositionForDistance.current.lng,
+              loc.coords.latitude,
+              loc.coords.longitude
+            );
+            if (dist > 0.005 && dist < 0.5) {
+              distanceCoveredRef.current += dist;
+              setDistanceCovered(distanceCoveredRef.current);
+            }
+          }
+          lastPositionForDistance.current = { lat: loc.coords.latitude, lng: loc.coords.longitude };
+          
           publishLocation(loc);
         }
       );
@@ -328,6 +375,18 @@ export default function ActiveRideScreen() {
     fetchRoute();
   }, [ride, userLocation]);
 
+  useEffect(() => {
+    if (userLocation && destinationCoord) {
+      const remaining = calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        destinationCoord.latitude,
+        destinationCoord.longitude
+      );
+      setDistanceRemaining(remaining);
+    }
+  }, [userLocation, destinationCoord]);
+
   const generateFallbackRoute = (start: Coordinate, end: Coordinate): Coordinate[] => {
     const points: Coordinate[] = [];
     const numPoints = 8;
@@ -374,8 +433,21 @@ export default function ActiveRideScreen() {
   const handleEndRide = useCallback(async () => {
     const doEndRide = async () => {
       try {
+        if (distanceCoveredRef.current > 0 && profile?.id) {
+          try {
+            await updateUserProfile(profile.id, {
+              totalDistanceKm: distanceCoveredRef.current
+            } as any);
+          } catch (e) {
+            console.log("Could not update profile distance:", e);
+          }
+        }
+        
         if (ride) {
-          await updateRide(ride.id, { status: "completed" });
+          await updateRide(ride.id, { 
+            status: "completed",
+            distanceCovered: distanceCoveredRef.current 
+          } as any);
         }
         navigation.popToTop();
       } catch (error) {
@@ -406,6 +478,16 @@ export default function ActiveRideScreen() {
   const handleLeaveRide = useCallback(async () => {
     const doLeaveRide = async () => {
       try {
+        if (distanceCoveredRef.current > 0 && profile?.id) {
+          try {
+            await updateUserProfile(profile.id, {
+              totalDistanceKm: distanceCoveredRef.current
+            } as any);
+          } catch (e) {
+            console.log("Could not update profile distance:", e);
+          }
+        }
+        
         if (ride && profile?.id) {
           await leaveRide(ride.id, profile.id);
         }
@@ -682,26 +764,31 @@ export default function ActiveRideScreen() {
             </Pressable>
           </View>
 
-          {(ride.estimatedDuration || ride.distanceText) ? (
-            <View style={styles.etaRow}>
-              {ride.estimatedDuration ? (
-                <View style={styles.etaItem}>
-                  <Feather name="clock" size={14} color={theme.primary} />
-                  <ThemedText type="small" style={[styles.etaText, { color: theme.text }]}>
-                    {ride.estimatedDuration}
-                  </ThemedText>
-                </View>
-              ) : null}
-              {ride.distanceText ? (
-                <View style={styles.etaItem}>
-                  <Feather name="map" size={14} color={theme.accent} />
-                  <ThemedText type="small" style={[styles.etaText, { color: theme.text }]}>
-                    {ride.distanceText}
-                  </ThemedText>
-                </View>
-              ) : null}
+          <View style={styles.statsRow}>
+            <View style={styles.statBox}>
+              <Feather name="navigation" size={14} color={theme.primary} />
+              <ThemedText type="h4" style={[styles.statValue, { color: theme.primary }]}>
+                {formatSpeed(currentSpeed)}
+              </ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>Speed</ThemedText>
             </View>
-          ) : null}
+            <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
+            <View style={styles.statBox}>
+              <Feather name="flag" size={14} color={theme.accent} />
+              <ThemedText type="h4" style={[styles.statValue, { color: theme.accent }]}>
+                {distanceRemaining !== null ? formatDistance(distanceRemaining) : "--"}
+              </ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>To Go</ThemedText>
+            </View>
+            <View style={[styles.statDivider, { backgroundColor: theme.border }]} />
+            <View style={styles.statBox}>
+              <Feather name="activity" size={14} color={theme.text} />
+              <ThemedText type="h4" style={[styles.statValue, { color: theme.text }]}>
+                {formatDistance(distanceCovered)}
+              </ThemedText>
+              <ThemedText type="small" style={{ color: theme.textSecondary }}>Covered</ThemedText>
+            </View>
+          </View>
 
           <View style={styles.actionButtons}>
             <Pressable
@@ -837,21 +924,25 @@ const styles = StyleSheet.create({
     minHeight: 44,
     justifyContent: "center",
   },
-  etaRow: {
+  statsRow: {
     flexDirection: "row",
-    marginTop: Spacing.sm,
-    paddingTop: Spacing.sm,
+    marginTop: Spacing.md,
+    paddingTop: Spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: "rgba(0,0,0,0.1)",
   },
-  etaItem: {
-    flexDirection: "row",
+  statBox: {
+    flex: 1,
     alignItems: "center",
-    marginRight: Spacing.lg,
   },
-  etaText: {
-    marginLeft: Spacing.xs,
-    fontWeight: "600",
+  statValue: {
+    marginTop: Spacing.xs,
+    fontWeight: "700",
+  },
+  statDivider: {
+    width: 1,
+    height: 50,
+    marginHorizontal: Spacing.sm,
   },
   actionButtons: {
     flexDirection: "row",

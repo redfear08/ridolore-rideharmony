@@ -39,12 +39,8 @@ export default function ProfileScreen() {
 
   const completedRides = rides.filter((r) => r.status === "completed").length;
   const totalRides = rides.length;
-  const totalMiles = rides
-    .filter((r) => r.status === "completed" && r.distanceKm)
-    .reduce((sum, r) => sum + (r.distanceKm || 0) * 0.621371, 0);
-  const totalKm = rides
-    .filter((r) => r.status === "completed" && r.distanceKm)
-    .reduce((sum, r) => sum + (r.distanceKm || 0), 0);
+  const totalKm = profile?.totalDistanceKm || 0;
+  const totalMiles = totalKm * 0.621371;
 
   const handlePickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
