@@ -27,6 +27,20 @@ Firebase integration complete with Authentication and Firestore for cloud data p
 
 **Social Feed:** Instagram-style social media feed for registered riders. Users can post vehicle-related content (photos, ride announcements), like posts, and comment. Data stored in Firebase `posts` collection with `posts/{postId}/likes` and `posts/{postId}/comments` subcollections. Real-time updates via Firebase onSnapshot.
 
+**Safety Features (v1.0.08):**
+- **Crash Detection**: Uses phone accelerometer to detect high G-force impacts (4.0G threshold). Shows confirmation dialog; if rider doesn't respond, sends emergency alert to all group members.
+- **SOS Alerts**: Sends emergency SOS with location to all riders via Firebase real-time alerts
+- **Hazard Reporting**: Report 8 types of hazards (pothole, accident, roadblock, police, animal, bad road, fuel station, other) visible to all riders
+- **Quick Actions**: "Regroup Now" and "Stop Ahead" buttons for group communication
+- **Battery Monitoring**: Alerts group when rider's battery drops below 15% (low) or 5% (critical)
+- **Network Monitoring**: Detects connectivity loss, shows offline banner with last sync time
+- **Stationary Detection**: Alerts group if a rider hasn't moved for 5+ minutes
+- **Distance Gap Detection**: Shows warning when a rider is more than 500m away from group
+- **Group ETA Prediction**: Calculates group arrival time based on slowest rider
+- **Weather Warnings**: Fetches weather at destination via Open-Meteo API; warns about rain, low visibility, or high winds
+- **Active Alerts Banner**: Shows real-time alerts from all riders (SOS, crashes, hazards, regroup requests)
+- **Ride Summary Screen**: Displays ride statistics including distance, max/avg speed, duration, stops, and safety score
+
 ## Tech Stack
 - **Frontend**: React Native with Expo (Expo Go compatible)
 - **Backend**: Express.js + Firebase (Firestore + Auth)
@@ -64,6 +78,7 @@ client/
 │   ├── useStorage.ts    # AsyncStorage hooks for profile/rides
 │   ├── useTheme.ts      # Theme access hook
 │   ├── useResponsive.ts # Responsive design utilities (breakpoints, scaling)
+│   ├── useSensors.ts    # Safety sensors (crash, battery, network, stationary)
 │   └── ...
 ├── navigation/
 │   ├── MainTabNavigator.tsx  # Bottom tab navigation
@@ -82,7 +97,8 @@ client/
 │   ├── ActiveRideScreen.tsx  # Live map tracking
 │   ├── GroupChatScreen.tsx   # In-ride messaging
 │   ├── RiderProfileScreen.tsx # View rider details
-│   └── ProfileSetupScreen.tsx # Profile onboarding
+│   ├── ProfileSetupScreen.tsx # Profile onboarding
+│   └── RideSummaryScreen.tsx  # Post-ride stats and summary
 └── App.tsx              # App entry point
 ```
 

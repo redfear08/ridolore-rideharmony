@@ -11,6 +11,7 @@ import RiderProfileScreen from "@/screens/RiderProfileScreen";
 import ProfileSetupScreen from "@/screens/ProfileSetupScreen";
 import CreatePostScreen from "@/screens/CreatePostScreen";
 import PostDetailScreen from "@/screens/PostDetailScreen";
+import RideSummaryScreen from "@/screens/RideSummaryScreen";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
 
 export type RootStackParamList = {
@@ -24,6 +25,7 @@ export type RootStackParamList = {
   RiderProfile: { riderId: string };
   CreatePost: undefined;
   PostDetail: { postId: string; focusComments?: boolean };
+  RideSummary: { rideId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -116,6 +118,16 @@ export default function RootStackNavigator() {
         options={{
           ...opaqueScreenOptions,
           headerTitle: "Post",
+        }}
+      />
+      <Stack.Screen
+        name="RideSummary"
+        component={RideSummaryScreen}
+        options={{
+          ...opaqueScreenOptions,
+          presentation: "fullScreenModal",
+          headerTitle: "Ride Summary",
+          gestureEnabled: false,
         }}
       />
     </Stack.Navigator>

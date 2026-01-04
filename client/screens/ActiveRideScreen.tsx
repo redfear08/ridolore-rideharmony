@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
-import { StyleSheet, View, Pressable, Alert, Platform, Linking, Share, FlatList } from "react-native";
+import { StyleSheet, View, Pressable, Alert, Platform, Linking, Share, FlatList, Modal, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as Location from "expo-location";
+import * as Haptics from "expo-haptics";
 import { Feather } from "@expo/vector-icons";
 
 import { ThemedText } from "@/components/ThemedText";
@@ -14,13 +15,22 @@ import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useRides, useProfile, Rider, Ride } from "@/hooks/useStorage";
 import { useAuth } from "@/contexts/AuthContext";
-import { getDirections, getDirectionsWithAlternatives, AlternateRoute } from "@/lib/googleMaps";
+import { getDirections, getDirectionsWithAlternatives, AlternateRoute, getWeatherForLocation, WeatherData } from "@/lib/googleMaps";
+import { useCrashDetection, useBatteryMonitor, useNetworkMonitor, useStationaryDetection, CrashEvent } from "@/hooks/useSensors";
 import { 
   updateRiderLocation, 
   subscribeToRiderLocations,
   leaveRide,
   RiderLocation,
-  updateUserProfile
+  updateUserProfile,
+  sendRideAlert,
+  subscribeToAlerts,
+  acknowledgeAlert,
+  dismissAlert,
+  RideAlert,
+  AlertType,
+  HazardType,
+  saveRideStats
 } from "@/lib/firebase";
 
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -144,6 +154,154 @@ export default function ActiveRideScreen() {
   const previousLocationsRef = useRef<RiderLocation[]>([]);
   const distanceCoveredRef = useRef(0);
   const lastPositionForDistance = useRef<{ lat: number; lng: number } | null>(null);
+  const rideStartTime = useRef<Date>(new Date());
+  const maxSpeedRef = useRef(0);
+  const stopsCountRef = useRef(0);
+  const speedSamplesRef = useRef<number[]>([]);
+
+  const [activeAlerts, setActiveAlerts] = useState<RideAlert[]>([]);
+  const [showHazardModal, setShowHazardModal] = useState(false);
+  const [showQuickActions, setShowQuickActions] = useState(false);
+  const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+
+  const handleCrashDetected = useCallback((event: CrashEvent) => {
+    if (Platform.OS !== "web") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+    
+    const sendCrashAlert = async () => {
+      if (ride && profile) {
+        try {
+          await sendRideAlert(ride.id, profile.id, profile.name || "Rider", "crash_detected", {
+            latitude: event.latitude,
+            longitude: event.longitude,
+            message: `Crash detected! G-force: ${event.magnitude.toFixed(1)}`,
+          });
+        } catch (e) {
+          console.error("Failed to send crash alert:", e);
+        }
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm("Sudden movement detected! Are you okay? Click Cancel if you need help.")) {
+        return;
+      }
+      sendCrashAlert();
+    } else {
+      Alert.alert(
+        "Are you okay?",
+        "We detected a sudden movement. Do you need help?",
+        [
+          { text: "I'm Fine", style: "cancel" },
+          { text: "Send SOS", style: "destructive", onPress: sendCrashAlert },
+        ],
+        { cancelable: false }
+      );
+    }
+  }, [ride, profile]);
+
+  const handleLowBattery = useCallback((level: number) => {
+    if (ride && profile) {
+      sendRideAlert(ride.id, profile.id, profile.name || "Rider", "low_battery", {
+        batteryLevel: level,
+        message: `Battery low: ${Math.round(level * 100)}%`,
+      }).catch(console.error);
+    }
+  }, [ride, profile]);
+
+  const handleNetworkDisconnect = useCallback(() => {
+    setIsOffline(true);
+    if (Platform.OS !== "web") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    }
+  }, []);
+
+  const handleNetworkReconnect = useCallback(() => {
+    setIsOffline(false);
+    setLastSyncTime(new Date());
+  }, []);
+
+  const handleStationaryTooLong = useCallback(() => {
+    if (ride && profile) {
+      stopsCountRef.current += 1;
+      sendRideAlert(ride.id, profile.id, profile.name || "Rider", "rider_stopped", {
+        latitude: userLocation?.latitude,
+        longitude: userLocation?.longitude,
+        message: `${profile.name || "A rider"} has been stationary for a while`,
+      }).catch(console.error);
+    }
+  }, [ride, profile, userLocation]);
+
+  const crashDetection = useCrashDetection(
+    !!ride && !!profile && Platform.OS !== "web",
+    handleCrashDetected,
+    userLocation
+  );
+
+  const battery = useBatteryMonitor(
+    !!ride && !!profile,
+    handleLowBattery
+  );
+
+  const network = useNetworkMonitor(
+    true,
+    handleNetworkDisconnect,
+    handleNetworkReconnect
+  );
+
+  const stationary = useStationaryDetection(
+    !!ride && !!profile,
+    currentSpeed,
+    300000,
+    handleStationaryTooLong
+  );
+
+  useEffect(() => {
+    if (currentSpeed !== null) {
+      const speedKmh = currentSpeed * 3.6;
+      if (speedKmh > maxSpeedRef.current) {
+        maxSpeedRef.current = speedKmh;
+      }
+      speedSamplesRef.current.push(speedKmh);
+    }
+  }, [currentSpeed]);
+
+  useEffect(() => {
+    if (!ride) return;
+
+    const unsubscribe = subscribeToAlerts(ride.id, (alerts) => {
+      setActiveAlerts(alerts);
+      
+      const newAlerts = alerts.filter(
+        (a) => a.senderId !== profile?.id && Date.now() - a.createdAt.getTime() < 5000
+      );
+      if (newAlerts.length > 0 && Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [ride, profile?.id]);
+
+  useEffect(() => {
+    if (!userLocation || !ride?.destinationCoords) return;
+
+    const fetchWeather = async () => {
+      const destLat = ride.destinationCoords?.lat || ride.destinationCoords?.latitude;
+      const destLng = ride.destinationCoords?.lng || ride.destinationCoords?.longitude;
+      if (destLat && destLng) {
+        const data = await getWeatherForLocation(destLat, destLng);
+        setWeather(data);
+      }
+    };
+
+    fetchWeather();
+    const interval = setInterval(fetchWeather, 600000);
+    return () => clearInterval(interval);
+  }, [ride?.destinationCoords, userLocation]);
   
   // Set map ready when we have a valid location (user location OR ride source coords)
   useEffect(() => {
@@ -560,18 +718,39 @@ export default function ActiveRideScreen() {
     }
   }, [ride, profile?.id, navigation, refreshProfile]);
 
-  const handleSOS = useCallback(() => {
-    const doSOS = () => {
-      if (Platform.OS === "web") {
-        window.alert("SOS Sent! All riders have been notified of your emergency.");
-      } else {
-        Alert.alert("SOS Sent", "All riders have been notified of your emergency.");
+  const handleSOS = useCallback(async () => {
+    const doSOS = async () => {
+      if (Platform.OS !== "web") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
+      
+      try {
+        if (ride && profile) {
+          await sendRideAlert(ride.id, profile.id, profile.name || "Rider", "sos", {
+            latitude: userLocation?.latitude,
+            longitude: userLocation?.longitude,
+            message: "Emergency SOS Alert!",
+          });
+        }
+        
+        if (Platform.OS === "web") {
+          window.alert("SOS Sent! All riders have been notified of your emergency.");
+        } else {
+          Alert.alert("SOS Sent", "All riders have been notified of your emergency.");
+        }
+      } catch (error) {
+        console.error("Error sending SOS:", error);
+        if (Platform.OS === "web") {
+          window.alert("Failed to send SOS. Please try again.");
+        } else {
+          Alert.alert("Error", "Failed to send SOS. Please try again.");
+        }
       }
     };
 
     if (Platform.OS === "web") {
       if (window.confirm("Send SOS Alert? Your location will be shared with all riders and emergency contacts.")) {
-        doSOS();
+        await doSOS();
       }
     } else {
       Alert.alert(
@@ -587,7 +766,89 @@ export default function ActiveRideScreen() {
         ]
       );
     }
-  }, []);
+  }, [ride, profile, userLocation]);
+
+  const handleReportHazard = useCallback(async (hazardType: HazardType) => {
+    if (!ride?.id || !profile?.id) {
+      setShowHazardModal(false);
+      return;
+    }
+    
+    try {
+      if (Platform.OS !== "web") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+      
+      const hazardLabels: Record<HazardType, string> = {
+        pothole: "Pothole",
+        accident: "Accident",
+        roadblock: "Roadblock",
+        police: "Police Checkpoint",
+        animal: "Animal on Road",
+        bad_road: "Bad Road Condition",
+        fuel_station: "Fuel Station Ahead",
+        other: "Hazard",
+      };
+      
+      await sendRideAlert(ride.id, profile.id, profile.name || "Rider", "hazard", {
+        hazardType,
+        latitude: userLocation?.latitude,
+        longitude: userLocation?.longitude,
+        message: `${hazardLabels[hazardType]} reported ahead!`,
+      });
+      
+      setShowHazardModal(false);
+      
+      if (Platform.OS !== "web") {
+        Alert.alert("Hazard Reported", "All riders have been notified.");
+      }
+    } catch (error) {
+      console.error("Error reporting hazard:", error);
+      setShowHazardModal(false);
+    }
+  }, [ride?.id, profile?.id, profile?.name, userLocation]);
+
+  const handleQuickAction = useCallback(async (action: "regroup" | "stop_ahead") => {
+    if (!ride?.id || !profile?.id) {
+      setShowQuickActions(false);
+      return;
+    }
+    
+    try {
+      if (Platform.OS !== "web") {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+      
+      const alertType: AlertType = action === "regroup" ? "regroup" : "stop_ahead";
+      const message = action === "regroup" 
+        ? "Regroup at my location!" 
+        : "Stop ahead - prepare to slow down";
+      
+      await sendRideAlert(ride.id, profile.id, profile.name || "Rider", alertType, {
+        latitude: userLocation?.latitude,
+        longitude: userLocation?.longitude,
+        message,
+      });
+      
+      setShowQuickActions(false);
+      
+      if (Platform.OS !== "web") {
+        Alert.alert("Alert Sent", "All riders have been notified.");
+      }
+    } catch (error) {
+      console.error("Error sending quick action:", error);
+      setShowQuickActions(false);
+    }
+  }, [ride?.id, profile?.id, profile?.name, userLocation]);
+
+  const handleDismissAlert = useCallback(async (alertId: string) => {
+    if (!ride?.id) return;
+    try {
+      await dismissAlert(ride.id, alertId);
+    } catch (error) {
+      console.error("Error dismissing alert:", error);
+    }
+  }, [ride?.id]);
 
   const handleOpenChat = useCallback(() => {
     navigation.navigate("GroupChat", { rideId: route.params.rideId });
@@ -649,6 +910,51 @@ export default function ActiveRideScreen() {
     primary: theme.primary,
     riderMarker: theme.riderMarker,
   }), [theme.accent, theme.primary, theme.riderMarker]);
+
+  const distanceGap = useMemo(() => {
+    if (!userLocation || riderLocations.length < 2) return null;
+    
+    let maxDistFromMe = 0;
+    let farthestRider = "";
+    
+    for (const loc of riderLocations) {
+      if (loc.riderId === profile?.id) continue;
+      const dist = calculateDistance(
+        userLocation.latitude,
+        userLocation.longitude,
+        loc.latitude,
+        loc.longitude
+      );
+      if (dist > maxDistFromMe) {
+        maxDistFromMe = dist;
+        farthestRider = loc.riderName || "A rider";
+      }
+    }
+    
+    return maxDistFromMe > 0.5 ? { distance: maxDistFromMe, riderName: farthestRider } : null;
+  }, [userLocation, riderLocations, profile?.id]);
+
+  const groupETA = useMemo(() => {
+    if (!destinationCoord || riderLocations.length === 0) return null;
+    
+    let maxDistance = 0;
+    
+    for (const loc of riderLocations) {
+      const dist = calculateDistance(
+        loc.latitude,
+        loc.longitude,
+        destinationCoord.latitude,
+        destinationCoord.longitude
+      );
+      if (dist > maxDistance) {
+        maxDistance = dist;
+      }
+    }
+    
+    const avgSpeedKmh = 40;
+    const etaMinutes = (maxDistance / avgSpeedKmh) * 60;
+    return etaMinutes;
+  }, [destinationCoord, riderLocations]);
 
   const renderRiderItem = useCallback(({ item }: { item: Rider }) => (
     <RiderItem
@@ -909,6 +1215,24 @@ export default function ActiveRideScreen() {
               />
             </View>
           ) : null}
+
+          {distanceGap ? (
+            <View style={[styles.gapWarning, { backgroundColor: "#F59E0B" + "20" }]}>
+              <Feather name="alert-circle" size={14} color="#F59E0B" />
+              <ThemedText type="small" style={{ marginLeft: Spacing.xs, flex: 1 }}>
+                {distanceGap.riderName} is {formatDistance(distanceGap.distance)} away
+              </ThemedText>
+            </View>
+          ) : null}
+
+          {groupETA !== null && groupETA > 0 ? (
+            <View style={[styles.groupEtaBar, { backgroundColor: theme.primary + "20" }]}>
+              <Feather name="clock" size={14} color={theme.primary} />
+              <ThemedText type="small" style={{ marginLeft: Spacing.xs }}>
+                Group ETA: {groupETA < 60 ? `${Math.round(groupETA)} min` : `${Math.floor(groupETA / 60)}h ${Math.round(groupETA % 60)}m`}
+              </ThemedText>
+            </View>
+          ) : null}
         </View>
       </View>
 
@@ -1020,6 +1344,182 @@ export default function ActiveRideScreen() {
           ) : null}
         </>
       ) : null}
+
+      {activeAlerts.length > 0 ? (
+        <View style={[styles.alertsBanner, { top: insets.top + 180, backgroundColor: theme.backgroundRoot + "F5" }]}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {activeAlerts.slice(0, 3).map((alert) => {
+              const alertColors: Record<AlertType, string> = {
+                sos: theme.danger,
+                crash_detected: theme.danger,
+                hazard: "#F59E0B",
+                regroup: theme.primary,
+                stop_ahead: "#F59E0B",
+                low_battery: "#F59E0B",
+                rider_stopped: theme.textSecondary,
+              };
+              const alertIcons: Record<AlertType, any> = {
+                sos: "alert-triangle",
+                crash_detected: "alert-circle",
+                hazard: "alert-triangle",
+                regroup: "users",
+                stop_ahead: "octagon",
+                low_battery: "battery",
+                rider_stopped: "pause-circle",
+              };
+              return (
+                <View
+                  key={alert.id}
+                  style={[styles.alertCard, { backgroundColor: alertColors[alert.type] + "20", borderColor: alertColors[alert.type] }]}
+                >
+                  <Feather name={alertIcons[alert.type]} size={16} color={alertColors[alert.type]} />
+                  <View style={styles.alertTextContainer}>
+                    <ThemedText type="small" style={{ fontWeight: "700" }}>
+                      {alert.senderName}
+                    </ThemedText>
+                    <ThemedText type="small" style={{ color: theme.textSecondary, fontSize: 11 }}>
+                      {alert.data?.message || alert.type.replace("_", " ")}
+                    </ThemedText>
+                  </View>
+                  <Pressable onPress={() => handleDismissAlert(alert.id)} style={styles.alertDismiss}>
+                    <Feather name="x" size={14} color={theme.textSecondary} />
+                  </Pressable>
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
+
+      {weather && (weather.precipitation > 0 || weather.visibility < 5 || weather.windSpeed > 30) ? (
+        <View style={[styles.weatherBanner, { top: insets.top + (activeAlerts.length > 0 ? 240 : 180), backgroundColor: "#F59E0B" + "20" }]}>
+          <Feather name="cloud" size={16} color="#F59E0B" />
+          <ThemedText type="small" style={{ marginLeft: Spacing.sm, flex: 1 }}>
+            {weather.precipitation > 0 ? "Rain expected at destination" : 
+             weather.visibility < 5 ? "Low visibility ahead" : 
+             "High winds reported"}
+          </ThemedText>
+          <ThemedText type="small" style={{ color: theme.textSecondary }}>
+            {Math.round(weather.temperature)}°C
+          </ThemedText>
+        </View>
+      ) : null}
+
+      {isOffline ? (
+        <View style={[styles.offlineBanner, { bottom: insets.bottom + 80 }]}>
+          <Feather name="wifi-off" size={16} color="#FFFFFF" />
+          <ThemedText type="small" style={{ color: "#FFFFFF", marginLeft: Spacing.sm }}>
+            Offline - Last sync: {lastSyncTime ? lastSyncTime.toLocaleTimeString() : "Never"}
+          </ThemedText>
+        </View>
+      ) : null}
+
+      <View style={[styles.quickActionsBar, { bottom: insets.bottom + Spacing.md }]}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.quickActionButton,
+            { backgroundColor: "#F59E0B", opacity: pressed ? 0.8 : 1 },
+          ]}
+          onPress={() => setShowHazardModal(true)}
+        >
+          <Feather name="alert-triangle" size={20} color="#FFFFFF" />
+        </Pressable>
+        <Pressable
+          style={({ pressed }) => [
+            styles.quickActionButton,
+            { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
+          ]}
+          onPress={() => setShowQuickActions(true)}
+        >
+          <Feather name="radio" size={20} color="#FFFFFF" />
+        </Pressable>
+      </View>
+
+      <Modal visible={showHazardModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.hazardModal, { backgroundColor: theme.backgroundRoot }]}>
+            <View style={styles.modalHeader}>
+              <ThemedText type="h3">Report Hazard</ThemedText>
+              <Pressable onPress={() => setShowHazardModal(false)}>
+                <Feather name="x" size={24} color={theme.text} />
+              </Pressable>
+            </View>
+            <View style={styles.hazardGrid}>
+              {([
+                { type: "pothole" as HazardType, icon: "circle", label: "Pothole" },
+                { type: "accident" as HazardType, icon: "alert-circle", label: "Accident" },
+                { type: "roadblock" as HazardType, icon: "slash", label: "Roadblock" },
+                { type: "police" as HazardType, icon: "shield", label: "Police" },
+                { type: "animal" as HazardType, icon: "github", label: "Animal" },
+                { type: "bad_road" as HazardType, icon: "alert-triangle", label: "Bad Road" },
+                { type: "fuel_station" as HazardType, icon: "droplet", label: "Fuel" },
+                { type: "other" as HazardType, icon: "more-horizontal", label: "Other" },
+              ]).map((hazard) => (
+                <Pressable
+                  key={hazard.type}
+                  style={({ pressed }) => [
+                    styles.hazardButton,
+                    { backgroundColor: theme.backgroundSecondary, opacity: pressed ? 0.7 : 1 },
+                  ]}
+                  onPress={() => handleReportHazard(hazard.type)}
+                >
+                  <Feather name={hazard.icon as any} size={24} color="#F59E0B" />
+                  <ThemedText type="small" style={{ marginTop: Spacing.xs }}>
+                    {hazard.label}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showQuickActions} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.quickActionsModal, { backgroundColor: theme.backgroundRoot }]}>
+            <View style={styles.modalHeader}>
+              <ThemedText type="h3">Quick Actions</ThemedText>
+              <Pressable onPress={() => setShowQuickActions(false)}>
+                <Feather name="x" size={24} color={theme.text} />
+              </Pressable>
+            </View>
+            <Pressable
+              style={({ pressed }) => [
+                styles.quickActionOption,
+                { backgroundColor: theme.primary, opacity: pressed ? 0.8 : 1 },
+              ]}
+              onPress={() => handleQuickAction("regroup")}
+            >
+              <Feather name="users" size={24} color="#FFFFFF" />
+              <View style={styles.quickActionText}>
+                <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "700" }}>
+                  Regroup Now
+                </ThemedText>
+                <ThemedText type="small" style={{ color: "#FFFFFF", opacity: 0.8 }}>
+                  Notify all riders to regroup at your location
+                </ThemedText>
+              </View>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.quickActionOption,
+                { backgroundColor: "#F59E0B", marginTop: Spacing.md, opacity: pressed ? 0.8 : 1 },
+              ]}
+              onPress={() => handleQuickAction("stop_ahead")}
+            >
+              <Feather name="octagon" size={24} color="#FFFFFF" />
+              <View style={styles.quickActionText}>
+                <ThemedText type="body" style={{ color: "#FFFFFF", fontWeight: "700" }}>
+                  Stop Ahead
+                </ThemedText>
+                <ThemedText type="small" style={{ color: "#FFFFFF", opacity: 0.8 }}>
+                  Signal upcoming stop or slowdown
+                </ThemedText>
+              </View>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1228,5 +1728,123 @@ const styles = StyleSheet.create({
   },
   routeOptionInfo: {
     flex: 1,
+  },
+  alertsBanner: {
+    position: "absolute",
+    left: Spacing.lg,
+    right: Spacing.lg,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    ...Shadows.card,
+  },
+  alertCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    marginRight: Spacing.sm,
+    minWidth: 200,
+  },
+  alertTextContainer: {
+    flex: 1,
+    marginLeft: Spacing.sm,
+  },
+  alertDismiss: {
+    padding: Spacing.xs,
+  },
+  weatherBanner: {
+    position: "absolute",
+    left: Spacing.lg,
+    right: Spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
+  },
+  offlineBanner: {
+    position: "absolute",
+    left: Spacing.lg,
+    right: Spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: "#EF4444",
+  },
+  quickActionsBar: {
+    position: "absolute",
+    left: Spacing.lg,
+    flexDirection: "row",
+  },
+  quickActionButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: Spacing.sm,
+    ...Shadows.card,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  hazardModal: {
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xl + 20,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.lg,
+  },
+  hazardGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  hazardButton: {
+    width: "23%",
+    aspectRatio: 1,
+    borderRadius: BorderRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.sm,
+  },
+  quickActionsModal: {
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xl + 20,
+  },
+  quickActionOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.md,
+  },
+  quickActionText: {
+    flex: 1,
+    marginLeft: Spacing.md,
+  },
+  gapWarning: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.sm,
+  },
+  groupEtaBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginTop: Spacing.sm,
   },
 });

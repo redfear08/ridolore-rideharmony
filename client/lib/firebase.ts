@@ -1017,3 +1017,201 @@ export function subscribeToPosts(callback: (posts: Post[]) => void) {
     callback(posts);
   });
 }
+
+// ============================================
+// RIDE ALERTS SYSTEM
+// ============================================
+
+export type AlertType = 
+  | "sos" 
+  | "crash_detected" 
+  | "hazard" 
+  | "regroup" 
+  | "stop_ahead" 
+  | "low_battery" 
+  | "rider_stopped" 
+  | "rider_behind";
+
+export type HazardType = 
+  | "pothole" 
+  | "accident" 
+  | "roadblock" 
+  | "police" 
+  | "animal" 
+  | "bad_road" 
+  | "fuel_station" 
+  | "other";
+
+export interface RideAlert {
+  id: string;
+  rideId: string;
+  senderId: string;
+  senderName: string;
+  alertType: AlertType;
+  hazardType?: HazardType;
+  message?: string;
+  latitude?: number;
+  longitude?: number;
+  batteryLevel?: number;
+  isActive: boolean;
+  createdAt: Date;
+  acknowledgedBy?: string[];
+}
+
+export async function sendRideAlert(
+  rideId: string,
+  senderId: string,
+  senderName: string,
+  alertType: AlertType,
+  options?: {
+    hazardType?: HazardType;
+    message?: string;
+    latitude?: number;
+    longitude?: number;
+    batteryLevel?: number;
+  }
+): Promise<string> {
+  if (!isFirebaseConfigured) {
+    throw new Error("Firebase is not configured.");
+  }
+
+  const alertData: Record<string, any> = {
+    rideId,
+    senderId,
+    senderName,
+    alertType,
+    isActive: true,
+    createdAt: Timestamp.now(),
+    acknowledgedBy: [],
+  };
+
+  if (options?.hazardType) alertData.hazardType = options.hazardType;
+  if (options?.message) alertData.message = options.message;
+  if (options?.latitude !== undefined) alertData.latitude = options.latitude;
+  if (options?.longitude !== undefined) alertData.longitude = options.longitude;
+  if (options?.batteryLevel !== undefined) alertData.batteryLevel = options.batteryLevel;
+
+  const docRef = await addDoc(collection(getDb_(), "rides", rideId, "alerts"), alertData);
+  return docRef.id;
+}
+
+export async function acknowledgeAlert(rideId: string, alertId: string, userId: string): Promise<void> {
+  if (!isFirebaseConfigured) return;
+
+  const alertRef = doc(getDb_(), "rides", rideId, "alerts", alertId);
+  const alertSnap = await getDoc(alertRef);
+  
+  if (alertSnap.exists()) {
+    const data = alertSnap.data();
+    const acknowledgedBy = data.acknowledgedBy || [];
+    if (!acknowledgedBy.includes(userId)) {
+      await updateDoc(alertRef, {
+        acknowledgedBy: [...acknowledgedBy, userId],
+      });
+    }
+  }
+}
+
+export async function dismissAlert(rideId: string, alertId: string): Promise<void> {
+  if (!isFirebaseConfigured) return;
+
+  const alertRef = doc(getDb_(), "rides", rideId, "alerts", alertId);
+  await updateDoc(alertRef, { isActive: false });
+}
+
+export function subscribeToAlerts(rideId: string, callback: (alerts: RideAlert[]) => void) {
+  if (!isFirebaseConfigured) {
+    callback([]);
+    return () => {};
+  }
+
+  const q = query(
+    collection(getDb_(), "rides", rideId, "alerts"),
+    where("isActive", "==", true),
+    orderBy("createdAt", "desc")
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const alerts: RideAlert[] = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      alerts.push({
+        id: docSnap.id,
+        rideId: data.rideId,
+        senderId: data.senderId,
+        senderName: data.senderName,
+        alertType: data.alertType,
+        hazardType: data.hazardType,
+        message: data.message,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        batteryLevel: data.batteryLevel,
+        isActive: data.isActive,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        acknowledgedBy: data.acknowledgedBy || [],
+      });
+    });
+    callback(alerts);
+  });
+}
+
+// ============================================
+// RIDE STATISTICS
+// ============================================
+
+export interface RideStats {
+  rideId: string;
+  riderId: string;
+  riderName: string;
+  distanceKm: number;
+  maxSpeedKmh: number;
+  avgSpeedKmh: number;
+  totalTimeMinutes: number;
+  stopsCount: number;
+  safetyScore: number;
+  startTime: Date;
+  endTime?: Date;
+}
+
+export async function saveRideStats(rideId: string, stats: Omit<RideStats, "rideId">): Promise<void> {
+  if (!isFirebaseConfigured) return;
+
+  const statsData: Record<string, any> = {
+    ...stats,
+    rideId,
+    startTime: Timestamp.fromDate(stats.startTime),
+  };
+  
+  if (stats.endTime) {
+    statsData.endTime = Timestamp.fromDate(stats.endTime);
+  }
+
+  const docRef = doc(getDb_(), "rides", rideId, "stats", stats.riderId);
+  await setDoc(docRef, statsData, { merge: true });
+}
+
+export async function getRideStats(rideId: string): Promise<RideStats[]> {
+  if (!isFirebaseConfigured) return [];
+
+  const snapshot = await getDocs(collection(getDb_(), "rides", rideId, "stats"));
+  const stats: RideStats[] = [];
+  
+  snapshot.forEach((docSnap) => {
+    const data = docSnap.data();
+    stats.push({
+      rideId: data.rideId,
+      riderId: data.riderId,
+      riderName: data.riderName,
+      distanceKm: data.distanceKm || 0,
+      maxSpeedKmh: data.maxSpeedKmh || 0,
+      avgSpeedKmh: data.avgSpeedKmh || 0,
+      totalTimeMinutes: data.totalTimeMinutes || 0,
+      stopsCount: data.stopsCount || 0,
+      safetyScore: data.safetyScore || 100,
+      startTime: data.startTime?.toDate() || new Date(),
+      endTime: data.endTime?.toDate(),
+    });
+  });
+
+  return stats;
+}
