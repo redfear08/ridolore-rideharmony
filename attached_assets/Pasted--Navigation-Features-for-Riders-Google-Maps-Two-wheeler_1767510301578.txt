@@ -1,0 +1,171 @@
+🏍️ Navigation Features for Riders
+
+Google Maps
+
+Two-wheeler mode (India-specific): avoids highways, narrow lanes friendly
+
+Voice navigation (helmet Bluetooth friendly)
+
+Lane guidance & junction views
+
+Offline maps (critical in remote/hilly areas)
+
+For Your Ride App
+
+Bike-optimized routes (avoid highways / bad roads)
+
+Voice-only navigation (minimal screen interaction)
+
+Offline route caching for the whole group
+
+🚦 Live Traffic & Road Awareness
+
+Google Maps
+
+Real-time traffic congestion
+
+Accident, roadblock, pothole, and hazard reports
+
+ETA changes during ride
+
+For Your Ride App
+
+Group-wide hazard alerts (if one rider reports, everyone gets it)
+
+Auto re-route entire group when leader changes route
+
+Highlight risky stretches (accident-prone zones)
+
+📍 Live Location & Group Tracking (VERY IMPORTANT)
+
+Google Maps
+
+Live location sharing
+
+ETA sharing with contacts
+
+Location history
+
+For Your Ride App
+
+Real-time group map showing:
+
+Ride leader
+
+Tail rider (sweep)
+
+Mid-pack riders
+
+Distance gap alerts (rider falling behind)
+
+Auto pause ride if someone stops unexpectedly
+
+🧑‍🤝‍🧑 Ride Group Coordination
+
+Google Maps
+
+Share trip progress
+
+Multi-stop routes
+
+For Your Ride App
+
+Ride creator sets:
+
+Source, destination, stoppages
+
+Speed limit & regroup points
+
+QR-based ride joining (you already planned this 👍)
+
+“Regroup now” or “Stop ahead” quick buttons
+
+🛑 Safety & Emergency Features
+
+Google Maps
+
+Emergency location sharing
+
+Safety check prompts
+
+For Your Ride App (BIG DIFFERENTIATOR)
+
+Crash detection using phone sensors
+
+SOS button → sends live location + medical info
+
+Auto alert if rider is stationary too long
+
+ICE (In Case of Emergency) contact sharing
+
+🗺️ Terrain & Adventure Riding
+
+Google Maps
+
+Terrain view
+
+Satellite view
+
+Street View previews
+
+For Your Ride App
+
+Road condition tags:
+
+Off-road / gravel / broken roads
+
+Elevation profile (great for Himalayan or Western Ghats rides)
+
+Weather + wind warnings on route
+
+🔊 Minimal Distraction UI (Rider-Centric)
+
+Google Maps
+
+Large buttons
+
+Voice-first interactions
+
+For Your Ride App
+
+One-tap controls (Gloves-friendly UI)
+
+Dark mode for night rides
+
+Handlebar mount optimized screen layout
+
+🔋 Battery & Network Awareness
+
+Google Maps
+
+Offline support
+
+Efficient background tracking
+
+For Your Ride App
+
+Low battery alerts shared with leader
+
+Auto switch to low-power tracking mode
+
+Network drop detection with last-known sync
+
+🧠 Smart Ride Intelligence (Advanced)
+
+Google Maps
+
+AI-based ETA prediction
+
+Eco-friendly routes
+
+For Your Ride App
+
+Predict group arrival time (based on slowest rider)
+
+Ride summary:
+
+Distance, speed, stops
+
+Rider drop-offs
+
+Safety score per ride
