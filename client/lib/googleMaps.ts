@@ -19,6 +19,23 @@ export interface DirectionsResult {
   };
 }
 
+export interface AlternateRoute {
+  coordinates: Coordinate[];
+  distance: string;
+  distanceKm: number;
+  duration: string;
+  durationMinutes: number;
+  isDefault: boolean;
+}
+
+export interface DirectionsWithAlternatives {
+  routes: AlternateRoute[];
+  bounds: {
+    northeast: Coordinate;
+    southwest: Coordinate;
+  };
+}
+
 function decodePolyline(encoded: string): Coordinate[] {
   const points: Coordinate[] = [];
   let index = 0;
@@ -204,4 +221,113 @@ export async function geocodeAddress(address: string): Promise<Coordinate | null
 
 export function isGoogleMapsConfigured(): boolean {
   return !!GOOGLE_MAPS_API_KEY;
+}
+
+export async function getDirectionsWithAlternatives(
+  origin: Coordinate,
+  destination: Coordinate
+): Promise<DirectionsWithAlternatives | null> {
+  if (!GOOGLE_MAPS_API_KEY) {
+    console.warn("Google Maps API key not configured");
+    return null;
+  }
+
+  try {
+    const requestBody = {
+      origin: {
+        location: {
+          latLng: {
+            latitude: origin.latitude,
+            longitude: origin.longitude,
+          },
+        },
+      },
+      destination: {
+        location: {
+          latLng: {
+            latitude: destination.latitude,
+            longitude: destination.longitude,
+          },
+        },
+      },
+      travelMode: "DRIVE",
+      routingPreference: "TRAFFIC_AWARE",
+      computeAlternativeRoutes: true,
+      languageCode: "en-US",
+      units: "METRIC",
+    };
+
+    const response = await fetch(
+      "https://routes.googleapis.com/directions/v2:computeRoutes",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": GOOGLE_MAPS_API_KEY,
+          "X-Goog-FieldMask": "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.viewport,routes.routeLabels",
+        },
+        body: JSON.stringify(requestBody),
+      }
+    );
+
+    const data = await response.json();
+
+    if (data.error) {
+      console.error("Routes API error:", data.error.message);
+      return null;
+    }
+
+    if (!data.routes || data.routes.length === 0) {
+      console.error("No routes found");
+      return null;
+    }
+
+    const routes: AlternateRoute[] = data.routes.map((route: any, index: number) => {
+      const polyline = route.polyline?.encodedPolyline;
+      const coordinates = polyline ? decodePolyline(polyline) : [];
+      
+      const distanceMeters = route.distanceMeters || 0;
+      const distanceKmNum = distanceMeters / 1000;
+      const distanceText = distanceKmNum >= 1 
+        ? distanceKmNum.toFixed(1) + " km" 
+        : Math.round(distanceMeters) + " m";
+      
+      const durationMatch = route.duration?.match(/(\d+)s/);
+      const durationSecs = durationMatch ? parseInt(durationMatch[1]) : 0;
+      const durationMins = Math.round(durationSecs / 60);
+      const durationStr = durationMins >= 60 
+        ? `${Math.floor(durationMins / 60)} hr ${durationMins % 60} min` 
+        : `${durationMins} min`;
+      
+      const isDefault = route.routeLabels?.includes("DEFAULT_ROUTE") || index === 0;
+      
+      return {
+        coordinates,
+        distance: distanceText,
+        distanceKm: distanceKmNum,
+        duration: durationStr,
+        durationMinutes: durationMins,
+        isDefault,
+      };
+    });
+
+    const firstRoute = data.routes[0];
+    
+    return {
+      routes,
+      bounds: {
+        northeast: {
+          latitude: firstRoute.viewport?.high?.latitude || destination.latitude,
+          longitude: firstRoute.viewport?.high?.longitude || destination.longitude,
+        },
+        southwest: {
+          latitude: firstRoute.viewport?.low?.latitude || origin.latitude,
+          longitude: firstRoute.viewport?.low?.longitude || origin.longitude,
+        },
+      },
+    };
+  } catch (error) {
+    console.error("Error fetching directions with alternatives:", error);
+    return null;
+  }
 }

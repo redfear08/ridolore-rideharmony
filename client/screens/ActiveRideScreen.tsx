@@ -14,7 +14,7 @@ import { Spacing, BorderRadius, Shadows } from "@/constants/theme";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useRides, useProfile, Rider, Ride } from "@/hooks/useStorage";
 import { useAuth } from "@/contexts/AuthContext";
-import { getDirections } from "@/lib/googleMaps";
+import { getDirections, getDirectionsWithAlternatives, AlternateRoute } from "@/lib/googleMaps";
 import { 
   updateRiderLocation, 
   subscribeToRiderLocations,
@@ -135,6 +135,9 @@ export default function ActiveRideScreen() {
   const [showTraffic, setShowTraffic] = useState(true);
   const [mapType, setMapType] = useState<"standard" | "satellite" | "hybrid" | "terrain">("standard");
   const [showMapSettings, setShowMapSettings] = useState(false);
+  const [alternateRoutes, setAlternateRoutes] = useState<AlternateRoute[]>([]);
+  const [selectedRouteIndex, setSelectedRouteIndex] = useState(0);
+  const [showRouteSelector, setShowRouteSelector] = useState(false);
   const hasSetupFallbackRoute = useRef(false);
   const hasFetchedFromFirebase = useRef(false);
   const lastLocationUpdate = useRef<{ lat: number; lng: number; time: number; speed: number } | null>(null);
@@ -354,15 +357,48 @@ export default function ActiveRideScreen() {
         
         try {
           const waypointCoordsList = ride.waypointCoords || [];
-          const directionsResult = await getDirections(srcCoords, destCoords, waypointCoordsList);
           
-          if (directionsResult && directionsResult.coordinates.length > 0) {
-            setRouteCoordinates(directionsResult.coordinates);
+          if (waypointCoordsList.length === 0) {
+            const alternativesResult = await getDirectionsWithAlternatives(srcCoords, destCoords);
+            
+            if (alternativesResult && alternativesResult.routes.length > 0) {
+              setAlternateRoutes(alternativesResult.routes);
+              setSelectedRouteIndex(0);
+              setRouteCoordinates(alternativesResult.routes[0].coordinates);
+              
+              if (alternativesResult.routes.length > 1) {
+                setShowRouteSelector(true);
+              } else {
+                setShowRouteSelector(false);
+              }
+            } else {
+              setAlternateRoutes([]);
+              setSelectedRouteIndex(0);
+              setShowRouteSelector(false);
+              const directionsResult = await getDirections(srcCoords, destCoords);
+              if (directionsResult && directionsResult.coordinates.length > 0) {
+                setRouteCoordinates(directionsResult.coordinates);
+              } else {
+                setRouteCoordinates(generateFallbackRoute(srcCoords, destCoords));
+              }
+            }
           } else {
-            setRouteCoordinates(generateFallbackRoute(srcCoords, destCoords));
+            setAlternateRoutes([]);
+            setSelectedRouteIndex(0);
+            setShowRouteSelector(false);
+            const directionsResult = await getDirections(srcCoords, destCoords, waypointCoordsList);
+            
+            if (directionsResult && directionsResult.coordinates.length > 0) {
+              setRouteCoordinates(directionsResult.coordinates);
+            } else {
+              setRouteCoordinates(generateFallbackRoute(srcCoords, destCoords));
+            }
           }
         } catch (error) {
           console.error("Error fetching directions:", error);
+          setAlternateRoutes([]);
+          setSelectedRouteIndex(0);
+          setShowRouteSelector(false);
           setRouteCoordinates(generateFallbackRoute(srcCoords, destCoords));
         } finally {
           setIsLoadingRoute(false);
@@ -743,6 +779,17 @@ export default function ActiveRideScreen() {
           onRiderPress={handleRiderPress}
           showTraffic={showTraffic}
           mapType={mapType}
+          alternateRoutes={alternateRoutes.map(r => ({
+            coordinates: r.coordinates,
+            distance: r.distance,
+            duration: r.duration,
+            isDefault: r.isDefault,
+          }))}
+          selectedRouteIndex={selectedRouteIndex}
+          onRouteSelect={(index) => {
+            setSelectedRouteIndex(index);
+            setRouteCoordinates(alternateRoutes[index].coordinates);
+          }}
         />
       ) : (
         <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.backgroundDefault, alignItems: 'center', justifyContent: 'center' }]}>
@@ -865,6 +912,48 @@ export default function ActiveRideScreen() {
         </View>
       </View>
 
+      {alternateRoutes.length > 1 ? (
+        <View style={[styles.routeSelectorContainer, { bottom: insets.bottom + Spacing.xl }]}>
+          <View style={[styles.routeSelectorPanel, { backgroundColor: theme.backgroundRoot + "F5" }]}>
+            <ThemedText type="small" style={{ fontWeight: "700", marginBottom: Spacing.sm }}>
+              {alternateRoutes.length} Routes Available
+            </ThemedText>
+            {alternateRoutes.map((route, index) => (
+              <Pressable
+                key={index}
+                style={({ pressed }) => [
+                  styles.routeOption,
+                  { 
+                    backgroundColor: selectedRouteIndex === index ? theme.primary + "20" : "transparent",
+                    borderColor: selectedRouteIndex === index ? theme.primary : theme.border,
+                    opacity: pressed ? 0.7 : 1,
+                  },
+                ]}
+                onPress={() => {
+                  setSelectedRouteIndex(index);
+                  setRouteCoordinates(alternateRoutes[index].coordinates);
+                }}
+              >
+                <View style={styles.routeOptionContent}>
+                  <View style={[styles.routeColorDot, { backgroundColor: index === selectedRouteIndex ? theme.primary : "#6B7280" }]} />
+                  <View style={styles.routeOptionInfo}>
+                    <ThemedText type="body" style={{ fontWeight: selectedRouteIndex === index ? "700" : "400" }}>
+                      {route.isDefault ? "Fastest Route" : `Route ${index + 1}`}
+                    </ThemedText>
+                    <ThemedText type="small" style={{ color: theme.textSecondary }}>
+                      {route.distance} - {route.duration}
+                    </ThemedText>
+                  </View>
+                  {selectedRouteIndex === index ? (
+                    <Feather name="check" size={18} color={theme.primary} />
+                  ) : null}
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
+
       {Platform.OS !== "web" ? (
         <>
           <Pressable
@@ -872,7 +961,7 @@ export default function ActiveRideScreen() {
               styles.centerButton,
               { 
                 backgroundColor: theme.backgroundRoot,
-                bottom: insets.bottom + Spacing.xl,
+                bottom: insets.bottom + Spacing.xl + (alternateRoutes.length > 1 ? 130 + alternateRoutes.length * 60 : 0),
                 opacity: pressed ? 0.8 : 1,
               },
             ]}
@@ -886,7 +975,7 @@ export default function ActiveRideScreen() {
               styles.mapSettingsButton,
               { 
                 backgroundColor: theme.backgroundRoot,
-                bottom: insets.bottom + Spacing.xl + 60,
+                bottom: insets.bottom + Spacing.xl + 60 + (alternateRoutes.length > 1 ? 130 + alternateRoutes.length * 60 : 0),
                 opacity: pressed ? 0.8 : 1,
               },
             ]}
@@ -1109,5 +1198,35 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
     minWidth: 32,
     alignItems: "center",
+  },
+  routeSelectorContainer: {
+    position: "absolute",
+    left: Spacing.lg,
+    right: Spacing.lg + 60,
+  },
+  routeSelectorPanel: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    ...Shadows.card,
+  },
+  routeOption: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.xs,
+    overflow: "hidden",
+  },
+  routeOptionContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.sm,
+  },
+  routeColorDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: Spacing.sm,
+  },
+  routeOptionInfo: {
+    flex: 1,
   },
 });

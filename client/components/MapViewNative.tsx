@@ -1,4 +1,4 @@
-import React, { useMemo, memo, useEffect, useRef } from "react";
+import React, { useMemo, memo, useEffect, useRef, useCallback } from "react";
 import { StyleSheet, View, Platform } from "react-native";
 import MapView, { Marker, Polyline, Region, Camera } from "react-native-maps";
 import { Feather } from "@expo/vector-icons";
@@ -16,6 +16,13 @@ interface RiderLocation {
   name: string;
   latitude: number;
   longitude: number;
+}
+
+interface AlternateRouteData {
+  coordinates: Coordinate[];
+  distance: string;
+  duration: string;
+  isDefault: boolean;
 }
 
 interface MapViewNativeProps {
@@ -36,6 +43,9 @@ interface MapViewNativeProps {
   enable3D?: boolean;
   showTraffic?: boolean;
   mapType?: "standard" | "satellite" | "hybrid" | "terrain";
+  alternateRoutes?: AlternateRouteData[];
+  selectedRouteIndex?: number;
+  onRouteSelect?: (index: number) => void;
 }
 
 const DARK_MAP_STYLE = [
@@ -130,11 +140,15 @@ const DestinationMarkerComponent = memo(function DestinationMarkerComponent({
 interface RoutePolylineProps {
   coordinates: Coordinate[];
   color: string;
+  isAlternate?: boolean;
+  onPress?: () => void;
 }
 
 const RoutePolylineComponent = memo(function RoutePolylineComponent({ 
   coordinates, 
-  color 
+  color,
+  isAlternate = false,
+  onPress
 }: RoutePolylineProps) {
   if (coordinates.length <= 1) return null;
   
@@ -142,13 +156,17 @@ const RoutePolylineComponent = memo(function RoutePolylineComponent({
     <Polyline
       coordinates={coordinates}
       strokeColor={color}
-      strokeWidth={4}
-      lineDashPattern={[0]}
+      strokeWidth={isAlternate ? 4 : 5}
+      lineDashPattern={isAlternate ? [10, 5] : [0]}
       lineJoin="round"
       lineCap="round"
+      tappable={!!onPress}
+      onPress={onPress}
     />
   );
 });
+
+const ALTERNATE_ROUTE_COLORS = ["#6B7280", "#9CA3AF", "#D1D5DB"];
 
 function isValidRegion(region: Region | null | undefined): region is Region {
   if (!region) return false;
@@ -182,6 +200,9 @@ function MapViewNativeInner({
   enable3D = true,
   showTraffic = true,
   mapType = "standard",
+  alternateRoutes = [],
+  selectedRouteIndex = 0,
+  onRouteSelect,
 }: MapViewNativeProps) {
   const has3DSetup = useRef(false);
   
@@ -202,20 +223,31 @@ function MapViewNativeInner({
     };
   }, [initialRegion]);
 
-  const trimmedRoute = useMemo(() => {
-    if (!userLocation || routeCoordinates.length < 2) {
-      return routeCoordinates;
+  const trimRouteFromUser = useCallback((coords: Coordinate[]): Coordinate[] => {
+    if (!userLocation || coords.length < 2) {
+      return coords;
     }
     
-    const nearestIndex = findNearestPointIndex(routeCoordinates, userLocation);
-    const routeFromCurrentPosition = routeCoordinates.slice(nearestIndex);
+    const nearestIndex = findNearestPointIndex(coords, userLocation);
+    const routeFromCurrentPosition = coords.slice(nearestIndex);
     
     if (routeFromCurrentPosition.length > 0) {
       return [userLocation, ...routeFromCurrentPosition];
     }
     
-    return routeCoordinates;
-  }, [routeCoordinates, userLocation]);
+    return coords;
+  }, [userLocation]);
+
+  const trimmedRoute = useMemo(() => {
+    return trimRouteFromUser(routeCoordinates);
+  }, [routeCoordinates, trimRouteFromUser]);
+
+  const trimmedSelectedRoute = useMemo(() => {
+    if (alternateRoutes.length > 0 && alternateRoutes[selectedRouteIndex]) {
+      return trimRouteFromUser(alternateRoutes[selectedRouteIndex].coordinates);
+    }
+    return [];
+  }, [alternateRoutes, selectedRouteIndex, trimRouteFromUser]);
 
   useEffect(() => {
     if (enable3D && mapRef.current && userLocation && Platform.OS !== "web" && !has3DSetup.current) {
@@ -276,10 +308,33 @@ function MapViewNativeInner({
         />
       ))}
 
-      <RoutePolylineComponent 
-        coordinates={trimmedRoute} 
-        color={theme.primary} 
-      />
+      {alternateRoutes.length > 0 ? (
+        <>
+          {alternateRoutes.map((route, index) => {
+            if (index === selectedRouteIndex) return null;
+            return (
+              <RoutePolylineComponent
+                key={`alt-route-${index}`}
+                coordinates={route.coordinates}
+                color={ALTERNATE_ROUTE_COLORS[index % ALTERNATE_ROUTE_COLORS.length]}
+                isAlternate={true}
+                onPress={onRouteSelect ? () => onRouteSelect(index) : undefined}
+              />
+            );
+          })}
+          {trimmedSelectedRoute.length > 0 ? (
+            <RoutePolylineComponent
+              coordinates={trimmedSelectedRoute}
+              color={theme.primary}
+            />
+          ) : null}
+        </>
+      ) : (
+        <RoutePolylineComponent 
+          coordinates={trimmedRoute} 
+          color={theme.primary} 
+        />
+      )}
     </MapView>
   );
 }

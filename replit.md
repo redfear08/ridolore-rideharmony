@@ -17,12 +17,13 @@ Firebase integration complete with Authentication and Firestore for cloud data p
 - **3D map view**: Camera tilts to 45° pitch for immersive navigation experience
 - **Dynamic route display**: Route polyline only shows from current position to destination (not from original source)
 
-**Google Maps Features (v1.0.06):**
+**Google Maps Features (v1.0.07):**
 - **Traffic layer**: Real-time traffic overlay showing congestion (toggleable)
 - **Night mode styling**: Custom dark map styling for better visibility at night
 - **Map type selection**: Switch between Standard, Satellite, Hybrid, and Terrain views
 - **Indoor maps**: Building floor plans where available
 - **Map settings panel**: Quick access to toggle traffic and change map type
+- **Alternate routes**: Up to 3 route options displayed when no waypoints are set. Users can tap alternate routes (shown as dashed gray lines) or use the route selector panel to switch between fastest route and alternatives. Selected route clips to current position for cleaner display.
 
 **Social Feed:** Instagram-style social media feed for registered riders. Users can post vehicle-related content (photos, ride announcements), like posts, and comment. Data stored in Firebase `posts` collection with `posts/{postId}/likes` and `posts/{postId}/comments` subcollections. Real-time updates via Firebase onSnapshot.
 

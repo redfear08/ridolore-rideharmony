@@ -18,6 +18,13 @@ interface RiderLocation {
   longitude: number;
 }
 
+interface AlternateRouteData {
+  coordinates: Coordinate[];
+  distance: string;
+  duration: string;
+  isDefault: boolean;
+}
+
 interface MapViewNativeProps {
   mapRef: React.RefObject<any>;
   initialRegion: any;
@@ -36,6 +43,9 @@ interface MapViewNativeProps {
   enable3D?: boolean;
   showTraffic?: boolean;
   mapType?: "standard" | "satellite" | "hybrid" | "terrain";
+  alternateRoutes?: AlternateRouteData[];
+  selectedRouteIndex?: number;
+  onRouteSelect?: (index: number) => void;
 }
 
 export function MapViewNative(_props: MapViewNativeProps) {
